@@ -22,7 +22,7 @@ I'm using a dev container so I don't have to install Go on my Mac. All I need a 
 Get a [free API key](https://www.alphavantage.co/support/#api-key) to retrieve stock quote data. Add an environment variable in your configuration script e.g., `.zshrc` or `bashrc` that the dev container reads. 
 
 ```sh
-export ALPHA_VANTAGE_API_KEY=""
+export ALPHAVANTAGE_API_KEY=""
 ```
 
 ## Resources
