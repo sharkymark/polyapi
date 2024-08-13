@@ -1,0 +1,23 @@
+{
+  "name": "PolyAPI w Go",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "."
+  },
+  "containerEnv": {
+    "ALPHAVANTAGE_API_KEY": "${localEnv:ALPHAVANTAGE_API_KEY}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "GitHub.copilot"
+      ]
+      }  
+  }, 
+  "postCreateCommand": "bash -c '[ ! -f go.mod ] && go mod init sfdc-go || true; go mod tidy'",
+  "postStartCommand": "bash -c 'go build -o main . && ./main'",
+  "forwardPorts": []
+}
+
+  
