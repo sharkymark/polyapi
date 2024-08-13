@@ -9,6 +9,7 @@ This is a new project and actively under development.
 ## Currently implemented functionality
 1. Reads environment variables like API keys
 1. Shows weather by geocoding an address entered
+1. Shows stock ticker data
 
 
 ## dev container
