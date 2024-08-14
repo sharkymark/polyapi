@@ -14,6 +14,11 @@ This is a new project and actively under development.
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
 
+## SQLite3 local database
+
+At program start, a db directory and `polyapi.db` are created. `db/` is added to a `.gitignore` file so they will not be included in the code repository.
+
+
 ## dev container
 
 I'm using a dev container so I don't have to install Go on my Mac. All I need a is a Docker daemon, which in my case is `colima` and VS Code with the dev container extension.
