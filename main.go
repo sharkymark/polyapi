@@ -254,10 +254,12 @@ func getNOAAWeather(lat, lon string) {
     
     // Submenu
     for {
-        fmt.Println("\nNOAA Weather Submenu:\n")
+        fmt.Println("\nNOAA Weather Submenu:")
+        fmt.Println()
         fmt.Println("1. Forecast")
         fmt.Println("2. Hourly Forecast")
-        fmt.Println("3. Return to Main Menu\n")
+        fmt.Println("3. Return to Main Menu")
+        fmt.Println()
         
         var option string
         fmt.Print("Enter your option: ")
@@ -335,6 +337,7 @@ func getGeoCode(db *sql.DB) {
     if err != nil {
         if err == io.EOF {
             fmt.Println("Cancelled")
+            fmt.Println()
             return // Return to previous menu
         }
         fmt.Println("Error reading input:", err)
@@ -412,7 +415,8 @@ func reuseAddress(db *sql.DB) {
         return
     }
 
-    fmt.Println("Previous addresses\n")
+    fmt.Println("Previous addresses")
+    fmt.Println()
 
     // Assign numbers to each result and ask the user to choose an address
     for i, address := range addresses {
@@ -435,7 +439,8 @@ func reuseAddress(db *sql.DB) {
 
     fmt.Println("\n1. Reuse")
     fmt.Println("2. Delete")
-    fmt.Println("3. Return to previous menu\n")
+    fmt.Println("3. Return to previous menu")
+    fmt.Println()
     fmt.Print("Enter your choice: ")
     var action int
     _, err = fmt.Scan(&action)
@@ -464,7 +469,8 @@ func reuseAddress(db *sql.DB) {
 }
 
 func geocodeMenu(db *sql.DB) {
-    fmt.Println("\nGeocode menu:\n")
+    fmt.Println("\nGeocode menu:")
+    fmt.Println()
     fmt.Println("1. Enter a new address")
     fmt.Println("2. Re-use/delete a previous address")
     fmt.Println()
@@ -579,6 +585,7 @@ func getStockQuote(db *sql.DB) {
     if err != nil {
         if err == io.EOF {
             fmt.Println("Cancelled")
+            fmt.Println()
             return
         }
         fmt.Println("Error reading input:", err)
@@ -621,6 +628,7 @@ func getStockQuote(db *sql.DB) {
     // Check for quota exceeded message
     if _, ok := data["Information"]; ok {
         fmt.Println("Daily API quota exceeded. Please refer to Alpha Vantage's premium plans for higher limits.")
+        fmt.Println()
         return
     }
 
@@ -628,6 +636,7 @@ func getStockQuote(db *sql.DB) {
 
     if quote["01. symbol"] == "" {
         fmt.Println("Invalid ticker symbol:", tickerSymbol)
+        fmt.Println()
         return
     }
 
@@ -660,10 +669,12 @@ func reuseTicker(db *sql.DB) {
 
     if len(tickers) == 0 {
         fmt.Println("No stock stickers found")
+        fmt.Println()
         return
     }
 
-    fmt.Println("Previous ticker symbols\n")
+    fmt.Println("Previous ticker symbols")
+    fmt.Println()
 
     // Assign numbers to each result and ask the user to choose a ticker symbol
     for i, ticker := range tickers {
@@ -686,7 +697,8 @@ func reuseTicker(db *sql.DB) {
 
     fmt.Println("\n1. Reuse")
     fmt.Println("2. Delete")
-    fmt.Println("3. Return to previous menu\n")
+    fmt.Println("3. Return to previous menu")
+    fmt.Println()
     fmt.Print("Enter your choice: ")
     var action int
     _, err = fmt.Scan(&action)
@@ -714,7 +726,8 @@ func reuseTicker(db *sql.DB) {
 
 // getTickerMenu prompts the user to enter a new ticker symbol or reuse a previous one.
 func tickerMenu(db *sql.DB) {
-    fmt.Println("\nTicker menu:\n")
+    fmt.Println("\nTicker menu:")
+    fmt.Println()
     fmt.Println("1. Enter a new ticker symbol")
     fmt.Println("2. Re-use/delete a previous ticker symbol")
 
@@ -743,15 +756,19 @@ func main() {
 
     db := createDB()
 
-	fmt.Println("\npolyAPI CLI")
-	fmt.Println("-----------\n\n")
+    fmt.Println()
+	fmt.Println("polyAPI CLI")
+	fmt.Println("-----------")
+    fmt.Println()
 
 	// Main menu
 	for {
-		fmt.Println("\nMain Menu:\n")
+		fmt.Println("Main Menu:")
+        fmt.Println()
 		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
-		fmt.Println("3. Exit\n")
+		fmt.Println("3. Exit")
+        fmt.Println()
 
 		var option string
 		fmt.Print("Enter your option: ")
