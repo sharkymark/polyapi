@@ -9,8 +9,8 @@ import (
     "bufio"
     "os"
     "strconv"
-    "math"
     "log"
+    "time"
     "io"
     "database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -53,10 +53,12 @@ type NOAAWeatherResponse struct {
 }
 
 type Address struct {
-    Id             int
-    MatchedAddress string
-    Latitude       float64
-    Longitude      float64
+    Id              int
+    MatchedAddress  string
+    Latitude        float64
+    Longitude       float64
+    LastTemperature string
+    UpdatedAt       string
 }
 
 type Ticker struct {
@@ -112,6 +114,38 @@ func deleteTicker(db *sql.DB, id int) {
     }
 }
 
+/*
+func addColumn(db *sql.DB, tableName, columnName, columnType string) error {
+    query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", tableName, columnName, columnType)
+    println(query)
+    
+    _, err := db.Exec(query)
+    if err != nil {
+        return fmt.Errorf("error adding column to table: %w", err)
+    }
+    return nil
+}
+*/
+
+func addColumn(db *sql.DB, tableName, columnName, columnType string) error {
+    // Check if column exists
+    query := fmt.Sprintf("SELECT name FROM pragma_table_info('%s') WHERE name = '%s'", tableName, columnName)
+    row := db.QueryRow(query)
+    var existingName string
+    err := row.Scan(&existingName)
+    if err != nil && err != sql.ErrNoRows { // Ignore "no rows" error
+        return fmt.Errorf("error checking for existing column: %w", err)
+    }
+
+    if existingName == "" { // Column doesn't exist
+        query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", tableName, columnName, columnType)
+        _, err := db.Exec(query)
+        if err != nil {
+            return fmt.Errorf("error adding column to table: %w", err)
+        }
+    }
+    return nil
+}
 
 
 func createDB() *sql.DB{
@@ -137,7 +171,8 @@ func createDB() *sql.DB{
 			lat REAL NOT NULL,
 			lon REAL NOT NULL,
             last_temperature TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE TABLE IF NOT EXISTS tickers (
 			id INTEGER PRIMARY KEY,
@@ -152,12 +187,26 @@ func createDB() *sql.DB{
             market_cap REAL NOT NULL,
             fiscal_year_end TEXT NOT NULL,
             last_price REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+    // Check if tables require additional columns
+    // Add updated_at column to addresses table
+    err = addColumn(db, "addresses", "updated_at", "TIMESTAMP")
+    if err != nil {
+        log.Fatal("Error adding updated_at to addresses table:", err)
+    }
+
+    // Add updated_at column to tickers table
+    err = addColumn(db, "tickers", "updated_at", "TIMESTAMP")
+    if err != nil {
+        log.Fatal("Error adding updated_at to tickers table:", err)
+    }
 
     return db
 
@@ -191,6 +240,12 @@ func printForecast(noaaResponse NOAAWeatherResponse) {
     }
 }
 
+//  extractDate extracts the date from a timestamp.
+func extractDate(timestamp string) string {
+    t, _ := time.Parse("2006-01-02 15:04:05", timestamp)
+    return t.Format("2006-01-02")
+}
+
 // formatTime formats the start time of a period.
 func formatTime(startTime string) string {
     startTime = strings.Split(startTime, "T")[1]
@@ -199,17 +254,18 @@ func formatTime(startTime string) string {
     hour := hourMinuteParts[0]
     minute := hourMinuteParts[1]
     ampm := "AM"
-    if hour >= "12" {
+    hourInt, _ := strconv.Atoi(hour)
+    if hourInt >= 12 {
         ampm = "PM"
     }
-    if hour == "00" {
+    if hourInt == 0 {
         hour = "12"
-    } else if hour > "12" {
-        hourInt, _ := strconv.Atoi(hour)
-        hour = strconv.Itoa(int(math.Mod(float64(hourInt-12), 24)))
+    } else if hourInt > 12 {
+        hour = strconv.Itoa(hourInt - 12)
     }
     return fmt.Sprintf("%s:%s %s", hour, minute, ampm)
 }
+
 
 // printHourlyForecast prints the hourly weather forecast for a location.
 // Specifically, it prints the next 12 hours.
@@ -224,11 +280,53 @@ func printHourlyForecast(noaaResponse NOAAWeatherResponse) {
     }
 }
 
+// Get first hourly temperature from the hourly forecast and update the address record in the database.
+func updateTemperature(db *sql.DB, noaaResponse NOAAWeatherResponse, addressId int) {
+
+    // Call the hourly forecast API
+    resp, err := http.Get(noaaResponse.Properties.ForecastHourly)
+    if err != nil {
+        fmt.Println(err)
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println(err)
+    }
+
+    err = json.Unmarshal(body, &noaaResponse)
+    if err != nil {
+        fmt.Println(err)
+    }
+
+    if len(noaaResponse.Properties.Periods) > 0 {
+        firstPeriod := noaaResponse.Properties.Periods[0]
+        temperature := strconv.Itoa(firstPeriod.Temperature)
+        unit := firstPeriod.TemperatureUnit
+        temp_and_unit := temperature + unit
+        if temperature != "" {
+            // Update address record with temperature
+            _, err = db.Exec("UPDATE addresses SET last_temperature = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", temp_and_unit, addressId)
+            if err != nil {
+                log.Printf("Error updating address record: %v", err)
+            } else {
+                fmt.Println()
+                fmt.Printf("Address record updated successfully with latest temperature %s!\n", temp_and_unit)
+            }
+        }
+      } else {
+        // Handle the case where there are no periods available
+        fmt.Println("No hourly forecast data available")
+      }
+
+}
+
 // getNOAAWeather sends a request to the NOAA API to get the weather forecast for a location.
 // it takes the latitude and longitude of the location as arguments.
 // it is called from geocode function.
 
-func getNOAAWeather(lat, lon string) {
+func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     reader := bufio.NewReader(os.Stdin)
     
     // First NOAA API call
@@ -252,6 +350,8 @@ func getNOAAWeather(lat, lon string) {
         return
     }
     
+    updateTemperature(db, noaaResponse, addressId)
+
     // Submenu
     for {
         fmt.Println("\nNOAA Weather Submenu:")
@@ -380,12 +480,20 @@ func getGeoCode(db *sql.DB) {
 
         // Insert new address into database
         matchedAddress := response.Result.AddressMatches[0].MatchedAddress
-        _, err = db.Exec("INSERT INTO addresses (address, lat, lon) VALUES (?, ?, ?)", matchedAddress, response.Result.AddressMatches[0].Coordinates.Y, response.Result.AddressMatches[0].Coordinates.X)
+        var result sql.Result
+        result, err = db.Exec("INSERT INTO addresses (address, lat, lon) VALUES (?, ?, ?)", matchedAddress, response.Result.AddressMatches[0].Coordinates.Y, response.Result.AddressMatches[0].Coordinates.X)
         if err != nil {
             log.Fatal(err)
         }
 
-        getNOAAWeather(fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.Y), fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.X))
+        // Get the ID of the inserted record
+        insertedId, err := result.LastInsertId()
+        if err != nil {
+            log.Printf("Error getting inserted ID: %v", err)
+            return // Handle the error appropriately (e.g., log and continue)
+        }
+
+        getNOAAWeather(fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.Y), fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.X), db, int(insertedId))
     } else {
         fmt.Println("No coordinates found")
     }
@@ -393,8 +501,9 @@ func getGeoCode(db *sql.DB) {
 
 //  reuseAddress allows the user to choose a previously entered address from the database.
 func reuseAddress(db *sql.DB) {
+
     // Retrieve unique addresses from the database
-    rows, err := db.Query("SELECT id, address, lat, lon FROM addresses GROUP BY address")
+    rows, err := db.Query("SELECT id, address, lat, lon, updated_at, last_temperature FROM addresses GROUP BY address")
     if err != nil {
         log.Fatal(err)
     }
@@ -403,10 +512,25 @@ func reuseAddress(db *sql.DB) {
     var addresses []Address
     for rows.Next() {
         var address Address
-        err := rows.Scan(&address.Id, &address.MatchedAddress, &address.Latitude, &address.Longitude)
+        var updatedAt, lastTemperature interface{}
+        err := rows.Scan(&address.Id, &address.MatchedAddress, &address.Latitude, &address.Longitude, &updatedAt, &lastTemperature)
         if err != nil {
             log.Fatal(err)
         }
+        
+        if updatedAt != nil {
+            t := updatedAt.(time.Time)
+            address.UpdatedAt = t.Format("2006-01-02 15:04:05")
+        } else {
+            address.UpdatedAt = ""
+        }
+
+        if lastTemperature != nil {
+            address.LastTemperature = fmt.Sprintf("%v", lastTemperature)
+        } else {
+            address.LastTemperature = ""
+        }
+
         addresses = append(addresses, address)
     }
 
@@ -420,7 +544,25 @@ func reuseAddress(db *sql.DB) {
 
     // Assign numbers to each result and ask the user to choose an address
     for i, address := range addresses {
-        fmt.Printf("%d. %s (lat: %f, lon: %f)\n", i+1, address.MatchedAddress, address.Latitude, address.Longitude)
+        var updatedat string
+        if address.UpdatedAt != "" {
+             updatedat = extractDate(address.UpdatedAt)
+        }
+
+        var lastTemp string
+        if address.LastTemperature != "" {
+            lastTemp = address.LastTemperature
+        }
+        var extraInfo string
+        if updatedat != "" || lastTemp != "" {
+            extraInfo = fmt.Sprintf("(%s %s)", lastTemp, func() string {
+                if updatedat != "" {
+                    return " - " + updatedat
+                }
+                return ""
+            }())
+        }
+        fmt.Printf("%d. %s (lat: %f, lon: %f) %s\n", i+1, address.MatchedAddress, address.Latitude, address.Longitude, extraInfo)
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
@@ -455,7 +597,7 @@ func reuseAddress(db *sql.DB) {
         chosenAddress := addresses[choice-1]
         lat := chosenAddress.Latitude
         lon := chosenAddress.Longitude
-        getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon))
+        getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon), db, chosenAddress.Id)
     case 2:
         // Delete the selected address
         deleteAddress(db, addresses[choice-1].Id)
