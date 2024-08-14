@@ -1,3 +1,6 @@
 polyapi
 main
-db/polyapi.db
+# ignore sqlite3 directory and database file. first time app runs, it is created
+# need a placeholder file for the directory to be saved
+/db/*
+!/db/.gitkeep
