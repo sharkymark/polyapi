@@ -332,7 +332,7 @@ func getGeoCode(db *sql.DB) {
     reader := bufio.NewReader(os.Stdin)
 
 	// Prompt user for address
-	fmt.Print("\nEnter address: (e.g., 432 Park Ave, 10022 or 432 Park Ave NY, NY) [Ctrl+D to quit]\n\n")
+	fmt.Print("\nEnter address: (e.g., 432 Park Ave, 10022 or 432 Park Ave NY, NY 10022) [Ctrl+D to quit]\n\n")
     address, err := reader.ReadString('\n')
     if err != nil {
         if err == io.EOF {
