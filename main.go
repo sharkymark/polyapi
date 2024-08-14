@@ -143,8 +143,6 @@ func addColumn(db *sql.DB, tableName, columnName, columnType string) error {
         if err != nil {
             return fmt.Errorf("error adding column to table: %w", err)
         }
-    } else {
-        fmt.Printf("Column '%s' already exists in table '%s'\n", columnName, tableName)
     }
     return nil
 }
