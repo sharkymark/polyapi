@@ -11,6 +11,7 @@ import (
     "strconv"
     "math"
     "log"
+    "io"
     "database/sql"
 	_ "github.com/mattn/go-sqlite3"
 	
@@ -52,9 +53,63 @@ type NOAAWeatherResponse struct {
 }
 
 type Address struct {
+    Id             int
     MatchedAddress string
     Latitude       float64
     Longitude      float64
+}
+
+type Ticker struct {
+    CompanyName string
+    Ticker      string
+    Exchange    string
+    Id          int
+}
+
+// deleteAddress deletes an address from the database.
+func deleteAddress(db *sql.DB, id int) {
+
+    // Delete the address from the database
+    result, err := db.Exec("DELETE FROM addresses WHERE id = ?", id)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println()
+
+    if rowsAffected > 0 {
+        fmt.Println("Address deleted successfully.")
+    } else {
+        fmt.Println("Address not found.")
+    }
+}
+
+// deleteTicker deletes a ticker symbol from the database.
+func deleteTicker(db *sql.DB, id int) {
+
+    // Delete the ticker from the database
+    result, err := db.Exec("DELETE FROM tickers WHERE id = ?", id)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println()
+
+    if rowsAffected > 0 {
+        fmt.Println("Ticker symbol deleted successfully.")
+    } else {
+        fmt.Println("Ticker symbol not found.")
+    }
 }
 
 
@@ -178,7 +233,6 @@ func getNOAAWeather(lat, lon string) {
     
     // First NOAA API call
     url := fmt.Sprintf("https://api.weather.gov/points/%s,%s", lat, lon)
-    println(url)
     resp, err := http.Get(url)
     if err != nil {
         fmt.Println(err)
@@ -276,8 +330,16 @@ func getGeoCode(db *sql.DB) {
     reader := bufio.NewReader(os.Stdin)
 
 	// Prompt user for address
-	fmt.Print("\nEnter address: (must be full address including number & street, city & state, and/or zip code) \n\n")
-    address, _ := reader.ReadString('\n')
+	fmt.Print("\nEnter address: (e.g., 432 Park Ave, 10022 or 432 Park Ave NY, NY) [ctrl+d to quit]\n\n")
+    address, err := reader.ReadString('\n')
+    if err != nil {
+        if err == io.EOF {
+            fmt.Println("Cancelled")
+            return // Return to previous menu
+        }
+        fmt.Println("Error reading input:", err)
+        return
+    }
     address = strings.TrimSpace(address)
     address = strings.ReplaceAll(address, " ", "+")
 
@@ -329,7 +391,7 @@ func getGeoCode(db *sql.DB) {
 //  reuseAddress allows the user to choose a previously entered address from the database.
 func reuseAddress(db *sql.DB) {
     // Retrieve unique addresses from the database
-    rows, err := db.Query("SELECT address, lat, lon FROM addresses GROUP BY address")
+    rows, err := db.Query("SELECT id, address, lat, lon FROM addresses GROUP BY address")
     if err != nil {
         log.Fatal(err)
     }
@@ -338,11 +400,16 @@ func reuseAddress(db *sql.DB) {
     var addresses []Address
     for rows.Next() {
         var address Address
-        err := rows.Scan(&address.MatchedAddress, &address.Latitude, &address.Longitude)
+        err := rows.Scan(&address.Id, &address.MatchedAddress, &address.Latitude, &address.Longitude)
         if err != nil {
             log.Fatal(err)
         }
         addresses = append(addresses, address)
+    }
+
+    if len(addresses) == 0 {
+        fmt.Println("No addresses found")
+        return
     }
 
     fmt.Println("Previous addresses\n")
@@ -351,29 +418,61 @@ func reuseAddress(db *sql.DB) {
     for i, address := range addresses {
         fmt.Printf("%d. %s (lat: %f, lon: %f)\n", i+1, address.MatchedAddress, address.Latitude, address.Longitude)
     }
-    fmt.Print("\nChoose an address: ")
+
+    fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
     var choice int
-    fmt.Scanln(&choice)
+    _, err = fmt.Scan(&choice)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
 
-    // Get weather for chosen address
-    chosenAddress := addresses[choice-1]
-    lat := chosenAddress.Latitude
-    lon := chosenAddress.Longitude
+    // Validate user input
+    if choice < 1 || choice > len(addresses) {
+        fmt.Println("Invalid choice")
+        return
+    }
 
-    // Call NOAA weather API with lat/long
-    getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon))
+    fmt.Println("\n1. Reuse")
+    fmt.Println("2. Delete")
+    fmt.Println("3. Return to previous menu\n")
+    fmt.Print("Enter your choice: ")
+    var action int
+    _, err = fmt.Scan(&action)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    switch action {
+    case 1:
+        // Reuse logic using addresses[choice-1]
+        chosenAddress := addresses[choice-1]
+        lat := chosenAddress.Latitude
+        lon := chosenAddress.Longitude
+        getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon))
+    case 2:
+        // Delete the selected address
+        deleteAddress(db, addresses[choice-1].Id)
+    case 3:
+        // Return to previous menu
+        return
+    default:
+        fmt.Println("Invalid choice")
+    }
+
 }
 
 func geocodeMenu(db *sql.DB) {
-    fmt.Println("\nGeocode menu:")
+    fmt.Println("\nGeocode menu:\n")
     fmt.Println("1. Enter a new address")
-    fmt.Println("2. Re-use a previous address")
+    fmt.Println("2. Re-use/delete a previous address")
+    fmt.Println()
 
     var option int
     fmt.Scanln(&option)
 
-    fmt.Println() // Add a blank line
-    fmt.Println() // Add another blank line
+    fmt.Println() 
 
     switch option {
     case 1:
@@ -472,10 +571,21 @@ func getStockQuote(db *sql.DB) {
         return
     }
 
-    fmt.Print("\nEnter a ticker symbol: ")
+    reader := bufio.NewReader(os.Stdin)
+
+    fmt.Print("\nEnter a ticker symbol: (e.g., AAPL, GOOG) [Ctrl+D to cancel] ")
     var tickerSymbol string
-    fmt.Scanln(&tickerSymbol)
-    fmt.Println()
+    tickerSymbol, err := reader.ReadString('\n')
+    if err != nil {
+        if err == io.EOF {
+            fmt.Println("Cancelled")
+            return
+        }
+        fmt.Println("Error reading input:", err)
+        return
+    }
+    tickerSymbol = strings.TrimSpace(tickerSymbol)
+
     url := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", tickerSymbol, apiKey)
     resp, err := http.Get(url)
     if err != nil {
@@ -500,7 +610,7 @@ func getStockQuote(db *sql.DB) {
 
     */
 
-    var data map[string]map[string]string
+    var data map[string]interface{}
 
     err = json.NewDecoder(resp.Body).Decode(&data)
     if err != nil {
@@ -508,7 +618,13 @@ func getStockQuote(db *sql.DB) {
         return
     }
 
-    quote := data["Global Quote"]
+    // Check for quota exceeded message
+    if _, ok := data["Information"]; ok {
+        fmt.Println("Daily API quota exceeded. Please refer to Alpha Vantage's premium plans for higher limits.")
+        return
+    }
+
+    quote := data["Global Quote"].(map[string]interface{})
 
     if quote["01. symbol"] == "" {
         fmt.Println("Invalid ticker symbol:", tickerSymbol)
@@ -525,28 +641,26 @@ func getStockQuote(db *sql.DB) {
 // reuseTicker allows the user to choose a previously entered ticker symbol from the database.
 func reuseTicker(db *sql.DB) {
     // Retrieve unique ticker symbols from the database
-    rows, err := db.Query("SELECT company_name, ticker, exchange FROM tickers GROUP BY ticker")
+    rows, err := db.Query("SELECT id, company_name, ticker, exchange FROM tickers GROUP BY ticker")
     if err != nil {
         log.Fatal(err)
     }
     defer rows.Close()
 
-    var tickers []struct {
-        CompanyName string
-        Ticker      string
-        Exchange    string
-    }
+    var tickers []Ticker 
+
     for rows.Next() {
-        var ticker struct {
-            CompanyName string
-            Ticker      string
-            Exchange    string
-        }
-        err := rows.Scan(&ticker.CompanyName, &ticker.Ticker, &ticker.Exchange)
+        var ticker Ticker
+        err := rows.Scan(&ticker.Id, &ticker.CompanyName, &ticker.Ticker, &ticker.Exchange)
         if err != nil {
             log.Fatal(err)
         }
         tickers = append(tickers, ticker)
+    }
+
+    if len(tickers) == 0 {
+        fmt.Println("No stock stickers found")
+        return
     }
 
     fmt.Println("Previous ticker symbols\n")
@@ -555,26 +669,61 @@ func reuseTicker(db *sql.DB) {
     for i, ticker := range tickers {
         fmt.Printf("%d. %s (%s:%s)\n", i+1, ticker.CompanyName, ticker.Ticker, ticker.Exchange)
     }
-    fmt.Print("\nChoose a ticker symbol: ")
-    var choice int
-    fmt.Scanln(&choice)
 
-    // Get stock overview for chosen ticker symbol
-    chosenTicker := tickers[choice-1].Ticker
-    getStockOverview(db, chosenTicker)
+    fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(tickers))
+    var choice int
+    _, err = fmt.Scan(&choice)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    // Validate user input
+    if choice < 1 || choice > len(tickers) {
+        fmt.Println("Invalid choice")
+        return
+    }
+
+    fmt.Println("\n1. Reuse")
+    fmt.Println("2. Delete")
+    fmt.Println("3. Return to previous menu\n")
+    fmt.Print("Enter your choice: ")
+    var action int
+    _, err = fmt.Scan(&action)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    switch action {
+    case 1:
+        // Get stock overview for chosen ticker symbol
+        chosenTicker := tickers[choice-1].Ticker
+        getStockOverview(db, chosenTicker)
+    case 2:
+        // Delete the selected ticker symbol
+        deleteTicker(db, tickers[choice-1].Id)
+    case 3:
+        // Return to previous menu
+        return
+    default:
+        fmt.Println("Invalid choice")
+    }
+
 }
 
 // getTickerMenu prompts the user to enter a new ticker symbol or reuse a previous one.
 func tickerMenu(db *sql.DB) {
-    fmt.Println("\nTicker menu:")
+    fmt.Println("\nTicker menu:\n")
     fmt.Println("1. Enter a new ticker symbol")
-    fmt.Println("2. Re-use a previous ticker symbol")
+    fmt.Println("2. Re-use/delete a previous ticker symbol")
+
+    fmt.Println()
 
     var option int
     fmt.Scanln(&option)
 
-    fmt.Println() // Add a blank line
-    fmt.Println() // Add another blank line
+    fmt.Println()
 
     switch option {
     case 1:
@@ -600,7 +749,7 @@ func main() {
 	// Main menu
 	for {
 		fmt.Println("\nMain Menu:\n")
-		fmt.Println("1. Return geocode for address & get weather")
+		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
 		fmt.Println("3. Exit\n")
 
