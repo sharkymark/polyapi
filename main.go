@@ -10,6 +10,10 @@ import (
     "os"
     "strconv"
     "math"
+    "log"
+    "io"
+    "database/sql"
+	_ "github.com/mattn/go-sqlite3"
 	
 )
 
@@ -20,6 +24,7 @@ type GeoCodingResponse struct {
 				X float64 `json:"x"`
 				Y float64 `json:"y"`
 			} `json:"coordinates"`
+            MatchedAddress string `json:"matchedAddress"`
 		} `json:"addressMatches"`
 	} `json:"result"`
 }
@@ -45,6 +50,117 @@ type NOAAWeatherResponse struct {
             DetailedForecast string `json:"detailedForecast"`
         } `json:"periods"`
     } `json:"properties"`
+}
+
+type Address struct {
+    Id             int
+    MatchedAddress string
+    Latitude       float64
+    Longitude      float64
+}
+
+type Ticker struct {
+    CompanyName string
+    Ticker      string
+    Exchange    string
+    Id          int
+}
+
+// deleteAddress deletes an address from the database.
+func deleteAddress(db *sql.DB, id int) {
+
+    // Delete the address from the database
+    result, err := db.Exec("DELETE FROM addresses WHERE id = ?", id)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println()
+
+    if rowsAffected > 0 {
+        fmt.Println("Address deleted successfully.")
+    } else {
+        fmt.Println("Address not found.")
+    }
+}
+
+// deleteTicker deletes a ticker symbol from the database.
+func deleteTicker(db *sql.DB, id int) {
+
+    // Delete the ticker from the database
+    result, err := db.Exec("DELETE FROM tickers WHERE id = ?", id)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println()
+
+    if rowsAffected > 0 {
+        fmt.Println("Ticker symbol deleted successfully.")
+    } else {
+        fmt.Println("Ticker symbol not found.")
+    }
+}
+
+
+
+func createDB() *sql.DB{
+	dbFile := "./db/polyapi.db"
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		// Create the database file
+		_, err := os.Create(dbFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	db, err := sql.Open("sqlite3", dbFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create tables for storing address and ticker symbol data
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS addresses (
+			id INTEGER PRIMARY KEY,
+			address TEXT NOT NULL,
+			lat REAL NOT NULL,
+			lon REAL NOT NULL,
+            last_temperature TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE TABLE IF NOT EXISTS tickers (
+			id INTEGER PRIMARY KEY,
+			ticker TEXT NOT NULL,
+			company_name TEXT NOT NULL,
+            sector TEXT NOT NULL,
+            industry TEXT NOT NULL,
+            exchange TEXT NOT NULL,
+            address TEXT NOT NULL,
+            official_site TEXT NOT NULL,
+            revenue_ttm REAL NOT NULL,
+            market_cap REAL NOT NULL,
+            fiscal_year_end TEXT NOT NULL,
+            last_price REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+    return db
+
 }
 
 // printForecast prints the weather forecast for a location.
@@ -209,13 +325,21 @@ func getNOAAWeather(lat, lon string) {
 
 // getGeoCode sends a request to the Census Geocoding API to get the coordinates of an address.
 
-func getGeoCode() {
+func getGeoCode(db *sql.DB) {
 
     reader := bufio.NewReader(os.Stdin)
 
 	// Prompt user for address
-	fmt.Print("\nEnter address: (must be full address including number & street, city & state, and/or zip code) \n\n")
-    address, _ := reader.ReadString('\n')
+	fmt.Print("\nEnter address: (e.g., 432 Park Ave, 10022 or 432 Park Ave NY, NY) [ctrl+d to quit]\n\n")
+    address, err := reader.ReadString('\n')
+    if err != nil {
+        if err == io.EOF {
+            fmt.Println("Cancelled")
+            return // Return to previous menu
+        }
+        fmt.Println("Error reading input:", err)
+        return
+    }
     address = strings.TrimSpace(address)
     address = strings.ReplaceAll(address, " ", "+")
 
@@ -250,14 +374,118 @@ func getGeoCode() {
         fmt.Println("\nCoordinates:")
 		fmt.Printf("  Latitude: %f\n", response.Result.AddressMatches[0].Coordinates.Y)
 		fmt.Printf("  Longitude: %f\n", response.Result.AddressMatches[0].Coordinates.X)
+
+        // Insert new address into database
+        matchedAddress := response.Result.AddressMatches[0].MatchedAddress
+        _, err = db.Exec("INSERT INTO addresses (address, lat, lon) VALUES (?, ?, ?)", matchedAddress, response.Result.AddressMatches[0].Coordinates.Y, response.Result.AddressMatches[0].Coordinates.X)
+        if err != nil {
+            log.Fatal(err)
+        }
+
         getNOAAWeather(fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.Y), fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.X))
     } else {
         fmt.Println("No coordinates found")
     }
 }
 
+//  reuseAddress allows the user to choose a previously entered address from the database.
+func reuseAddress(db *sql.DB) {
+    // Retrieve unique addresses from the database
+    rows, err := db.Query("SELECT id, address, lat, lon FROM addresses GROUP BY address")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer rows.Close()
+
+    var addresses []Address
+    for rows.Next() {
+        var address Address
+        err := rows.Scan(&address.Id, &address.MatchedAddress, &address.Latitude, &address.Longitude)
+        if err != nil {
+            log.Fatal(err)
+        }
+        addresses = append(addresses, address)
+    }
+
+    if len(addresses) == 0 {
+        fmt.Println("No addresses found")
+        return
+    }
+
+    fmt.Println("Previous addresses\n")
+
+    // Assign numbers to each result and ask the user to choose an address
+    for i, address := range addresses {
+        fmt.Printf("%d. %s (lat: %f, lon: %f)\n", i+1, address.MatchedAddress, address.Latitude, address.Longitude)
+    }
+
+    fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
+    var choice int
+    _, err = fmt.Scan(&choice)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    // Validate user input
+    if choice < 1 || choice > len(addresses) {
+        fmt.Println("Invalid choice")
+        return
+    }
+
+    fmt.Println("\n1. Reuse")
+    fmt.Println("2. Delete")
+    fmt.Println("3. Return to previous menu\n")
+    fmt.Print("Enter your choice: ")
+    var action int
+    _, err = fmt.Scan(&action)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    switch action {
+    case 1:
+        // Reuse logic using addresses[choice-1]
+        chosenAddress := addresses[choice-1]
+        lat := chosenAddress.Latitude
+        lon := chosenAddress.Longitude
+        getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon))
+    case 2:
+        // Delete the selected address
+        deleteAddress(db, addresses[choice-1].Id)
+    case 3:
+        // Return to previous menu
+        return
+    default:
+        fmt.Println("Invalid choice")
+    }
+
+}
+
+func geocodeMenu(db *sql.DB) {
+    fmt.Println("\nGeocode menu:\n")
+    fmt.Println("1. Enter a new address")
+    fmt.Println("2. Re-use/delete a previous address")
+    fmt.Println()
+
+    var option int
+    fmt.Scanln(&option)
+
+    fmt.Println() 
+
+    switch option {
+    case 1:
+        // Enter a new address
+        getGeoCode(db)
+    case 2:
+        // Re-use a previous address
+        reuseAddress(db)
+    }
+}
+
 // getStockOverview sends a request to the Alpha Vantage API to get an overview of a company
-func getStockOverview(tickerSymbol string) {
+func getStockOverview(db *sql.DB, tickerSymbol string) {
     apiKey := os.Getenv("ALPHAVANTAGE_API_KEY")
     if apiKey == "" {
         fmt.Println("ALPHAVANTAGE_API_KEY environment variable is not set.")
@@ -283,6 +511,19 @@ func getStockOverview(tickerSymbol string) {
     if err != nil {
         fmt.Println(err)
         return
+    }
+
+    // Insert data into database
+    _, err = db.Exec(`
+        INSERT INTO tickers (
+            ticker, company_name, sector, industry, exchange, address, official_site, 
+            revenue_ttm, market_cap, fiscal_year_end, last_price
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, tickerSymbol, data["Name"], data["Sector"], data["Industry"], data["Exchange"], 
+        data["Address"], data["OfficialSite"], data["RevenueTTM"], data["MarketCapitalization"], 
+        data["FiscalYearEnd"], data["LastPrice"])
+    if err != nil {
+        log.Fatal(err)
     }
 
     /*
@@ -323,33 +564,67 @@ func formatRevenueTTM(revenueTTM string) string {
 }
 
 // getStockQuote sends a request to the Alpha Vantage API to get a stock quote for a ticker symbol.
-func getStockQuote() {
+func getStockQuote(db *sql.DB) {
     apiKey := os.Getenv("ALPHAVANTAGE_API_KEY")
     if apiKey == "" {
         fmt.Println("ALPHAVANTAGE_API_KEY environment variable is not set.")
         return
     }
 
-    fmt.Print("\nEnter a ticker symbol: ")
+    reader := bufio.NewReader(os.Stdin)
+
+    fmt.Print("\nEnter a ticker symbol: (e.g., AAPL, GOOG) [Ctrl+D to cancel] ")
     var tickerSymbol string
-    fmt.Scanln(&tickerSymbol)
-    fmt.Println()
+    tickerSymbol, err := reader.ReadString('\n')
+    if err != nil {
+        if err == io.EOF {
+            fmt.Println("Cancelled")
+            return
+        }
+        fmt.Println("Error reading input:", err)
+        return
+    }
+    tickerSymbol = strings.TrimSpace(tickerSymbol)
+
     url := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", tickerSymbol, apiKey)
     resp, err := http.Get(url)
     if err != nil {
         fmt.Println(err)
         return
     }
+    
     defer resp.Body.Close()
 
-    var data map[string]map[string]string
+    /*
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println(string(body))
+
+    if info, ok := data["Information"]; ok {
+        fmt.Println(info)
+        return
+    }
+
+    */
+
+    var data map[string]interface{}
+
     err = json.NewDecoder(resp.Body).Decode(&data)
     if err != nil {
         fmt.Println(err)
         return
     }
 
-    quote := data["Global Quote"]
+    // Check for quota exceeded message
+    if _, ok := data["Information"]; ok {
+        fmt.Println("Daily API quota exceeded. Please refer to Alpha Vantage's premium plans for higher limits.")
+        return
+    }
+
+    quote := data["Global Quote"].(map[string]interface{})
 
     if quote["01. symbol"] == "" {
         fmt.Println("Invalid ticker symbol:", tickerSymbol)
@@ -359,8 +634,105 @@ func getStockQuote() {
     fmt.Printf("Symbol: %s Price: %s Open: %s Change: %s Change Percent: %s\n", quote["01. symbol"], quote["05. price"], quote["02. open"], quote["09. change"], quote["10. change percent"])
     fmt.Printf("   High: %s Low: %s Previous Close: %s\n", quote["03. high"], quote["04. low"], quote["08. previous close"])
 
-    getStockOverview(tickerSymbol)
+    getStockOverview(db,tickerSymbol)
 
+}
+
+// reuseTicker allows the user to choose a previously entered ticker symbol from the database.
+func reuseTicker(db *sql.DB) {
+    // Retrieve unique ticker symbols from the database
+    rows, err := db.Query("SELECT id, company_name, ticker, exchange FROM tickers GROUP BY ticker")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer rows.Close()
+
+    var tickers []Ticker 
+
+    for rows.Next() {
+        var ticker Ticker
+        err := rows.Scan(&ticker.Id, &ticker.CompanyName, &ticker.Ticker, &ticker.Exchange)
+        if err != nil {
+            log.Fatal(err)
+        }
+        tickers = append(tickers, ticker)
+    }
+
+    if len(tickers) == 0 {
+        fmt.Println("No stock stickers found")
+        return
+    }
+
+    fmt.Println("Previous ticker symbols\n")
+
+    // Assign numbers to each result and ask the user to choose a ticker symbol
+    for i, ticker := range tickers {
+        fmt.Printf("%d. %s (%s:%s)\n", i+1, ticker.CompanyName, ticker.Ticker, ticker.Exchange)
+    }
+
+    fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(tickers))
+    var choice int
+    _, err = fmt.Scan(&choice)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    // Validate user input
+    if choice < 1 || choice > len(tickers) {
+        fmt.Println("Invalid choice")
+        return
+    }
+
+    fmt.Println("\n1. Reuse")
+    fmt.Println("2. Delete")
+    fmt.Println("3. Return to previous menu\n")
+    fmt.Print("Enter your choice: ")
+    var action int
+    _, err = fmt.Scan(&action)
+    if err != nil {
+        fmt.Println("Invalid input")
+        return
+    }
+
+    switch action {
+    case 1:
+        // Get stock overview for chosen ticker symbol
+        chosenTicker := tickers[choice-1].Ticker
+        getStockOverview(db, chosenTicker)
+    case 2:
+        // Delete the selected ticker symbol
+        deleteTicker(db, tickers[choice-1].Id)
+    case 3:
+        // Return to previous menu
+        return
+    default:
+        fmt.Println("Invalid choice")
+    }
+
+}
+
+// getTickerMenu prompts the user to enter a new ticker symbol or reuse a previous one.
+func tickerMenu(db *sql.DB) {
+    fmt.Println("\nTicker menu:\n")
+    fmt.Println("1. Enter a new ticker symbol")
+    fmt.Println("2. Re-use/delete a previous ticker symbol")
+
+    fmt.Println()
+
+    var option int
+    fmt.Scanln(&option)
+
+    fmt.Println()
+
+    switch option {
+    case 1:
+        // Enter a new ticker symbol
+        getStockQuote(db)
+    case 2:
+        // Re-use a previous ticker symbol
+        reuseTicker(db)
+    }
 }
 
 // main is the entry point of the polyapi CLI tool.
@@ -369,13 +741,15 @@ func getStockQuote() {
 
 func main() {
 
+    db := createDB()
+
 	fmt.Println("\npolyAPI CLI")
 	fmt.Println("-----------\n\n")
 
 	// Main menu
 	for {
 		fmt.Println("\nMain Menu:\n")
-		fmt.Println("1. Return geocode for address & get weather")
+		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
 		fmt.Println("3. Exit\n")
 
@@ -386,10 +760,11 @@ func main() {
 		switch option {
 		case "1":
 			
-            getGeoCode()
+            geocodeMenu(db)
         case "2":
-            getStockQuote()
+            tickerMenu(db)
 		case "3":
+            defer db.Close()
 			fmt.Println("\nExiting...")
 			return
 		default:

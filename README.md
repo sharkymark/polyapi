@@ -10,7 +10,9 @@ This is a new project and actively under development.
 1. Reads environment variables like API keys
 1. Shows weather by geocoding an address entered
 1. Shows stock ticker data
+1. Stores validated addresses and ticker symbols in a local SQLite3 database for re-use or deletion
 
+![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
 
 ## dev container
 
@@ -18,7 +20,11 @@ I'm using a dev container so I don't have to install Go on my Mac. All I need a 
 
 ## API providers
 
-### Alpha Vantage (stock quotes)
+### Weather for Addresses (United States Census Bureau and National Oceanic and Atmospheric Administration)
+
+NOAA's API provides weather forecast information but requires latitude and longitude coordinates. The U.S. Census bureau has an API has a geocoding that returns coordinates based on a valid address. No API keys required for both APIs.
+
+### Stock Quotes (Alpha Vantage)
 
 Get a [free API key](https://www.alphavantage.co/support/#api-key) to retrieve stock quote data. Add an environment variable in your configuration script e.g., `.zshrc` or `bashrc` that the dev container reads. 
 
