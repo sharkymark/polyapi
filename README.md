@@ -1,6 +1,6 @@
 # An API app written in Go
 
-polyapi has retrieves personal information from many (poly) disparate APIs within a CLI app that you may historically retrieve on web pages. Go is a cross-platform, statically typed and compiled programming language. A dev container (development container) is a self-contained dev environment with a Docker container allowing portability and instant creation of a dev environment without manual installation.
+polyapi retrieves information from many (poly) disparate APIs within a CLI app that you may have historically retrieve on web pages. Go is a cross-platform, statically typed and compiled programming language. A dev container (development container) is a self-contained dev environment with a Docker container allowing portability and instant creation of a dev environment without manual installation.
 
 ## Lastest update
 
@@ -17,7 +17,7 @@ This is a new project and actively under development.
 
 ## SQLite3 local database
 
-At program start, a db directory and `polyapi.db` are created. `db/` is added to a `.gitignore` file so they will not be included in the code repository.
+At program start, a db directory and `polyapi.db` are created. `db/polyapi.db` is added to a `.gitignore` file so it will not be included in the code repository.
 
 ## dev container
 
@@ -25,7 +25,7 @@ I'm using a dev container so I don't have to install Go on my Mac. All I need a 
 
 ## API providers
 
-### Weather for Addresses (United States Census Bureau and National Oceanic and Atmospheric Administration)
+### Weather for Addresses (USGOV)
 
 NOAA's API provides weather forecast information but requires latitude and longitude coordinates. The U.S. Census bureau has an API has a geocoding that returns coordinates based on a valid address. No API keys required for both APIs.
 
