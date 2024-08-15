@@ -65,6 +65,8 @@ type Ticker struct {
     CompanyName string
     Ticker      string
     Exchange    string
+    LastPrice   string
+    UpdatedAt   string
     Id          int
 }
 
@@ -242,7 +244,7 @@ func printForecast(noaaResponse NOAAWeatherResponse) {
 
 //  extractDate extracts the date from a timestamp.
 func extractDate(timestamp string) string {
-    t, _ := time.Parse("2006-01-02 15:04:05", timestamp)
+    t, _ := time.Parse("2006-01-02T15:04:05", timestamp)
     return t.Format("2006-01-02")
 }
 
@@ -525,7 +527,7 @@ func reuseAddress(db *sql.DB) {
         
         if updatedAt != nil {
             t := updatedAt.(time.Time)
-            address.UpdatedAt = t.Format("2006-01-02 15:04:05")
+            address.UpdatedAt = t.Format("2006-01-02T15:04:05")
         } else {
             address.UpdatedAt = ""
         }
@@ -560,14 +562,14 @@ func reuseAddress(db *sql.DB) {
         }
         var extraInfo string
         if updatedat != "" || lastTemp != "" {
-            extraInfo = fmt.Sprintf("(%s %s)", lastTemp, func() string {
+            extraInfo = fmt.Sprintf("%s on %s", lastTemp, func() string {
                 if updatedat != "" {
-                    return " - " + updatedat
+                    return updatedat
                 }
                 return ""
             }())
         }
-        fmt.Printf("%d. %s (lat: %f, lon: %f) %s\n", i+1, address.MatchedAddress, address.Latitude, address.Longitude, extraInfo)
+        fmt.Printf("%d. %s ~ %s\n  @ lat: %f, lon: %f\n", i+1, address.MatchedAddress, extraInfo, address.Latitude, address.Longitude)
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
@@ -638,7 +640,7 @@ func geocodeMenu(db *sql.DB) {
 }
 
 // getStockOverview sends a request to the Alpha Vantage API to get an overview of a company
-func getStockOverview(db *sql.DB, tickerSymbol string) {
+func getStockOverview(db *sql.DB, tickerSymbol interface{}, lastPrice interface{}, action string) {
     apiKey := os.Getenv("ALPHAVANTAGE_API_KEY")
     if apiKey == "" {
         fmt.Println("ALPHAVANTAGE_API_KEY environment variable is not set.")
@@ -666,17 +668,41 @@ func getStockOverview(db *sql.DB, tickerSymbol string) {
         return
     }
 
-    // Insert data into database
-    _, err = db.Exec(`
-        INSERT INTO tickers (
-            ticker, company_name, sector, industry, exchange, address, official_site, 
-            revenue_ttm, market_cap, fiscal_year_end, last_price
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, tickerSymbol, data["Name"], data["Sector"], data["Industry"], data["Exchange"], 
-        data["Address"], data["OfficialSite"], data["RevenueTTM"], data["MarketCapitalization"], 
-        data["FiscalYearEnd"], data["LastPrice"])
-    if err != nil {
-        log.Fatal(err)
+    // Check for quota exceeded message
+    if _, ok := data["Information"]; ok {
+        fmt.Println("Daily API quota exceeded. Please refer to Alpha Vantage's premium plans for higher limits.")
+        fmt.Println()
+        return
+    }
+
+    // for first time quote, insert data into database
+    // for update, update data in database with last price
+    if action == "insert" {
+
+        // Insert data into database
+        _, err = db.Exec(`
+            INSERT INTO tickers (
+                ticker, company_name, sector, industry, exchange, address, official_site, 
+                revenue_ttm, market_cap, fiscal_year_end, last_price, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `, tickerSymbol, data["Name"], data["Sector"], data["Industry"], data["Exchange"], 
+            data["Address"], data["OfficialSite"], data["RevenueTTM"], data["MarketCapitalization"], 
+            data["FiscalYearEnd"], lastPrice)
+        if err != nil {
+            log.Fatal(err)
+        }
+
+    } else if action == "update" {
+
+        // Update data in database
+        _, err = db.Exec(`
+            UPDATE tickers SET
+                last_price = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE ticker = ?
+        `, lastPrice, tickerSymbol)
+        if err != nil {
+            log.Fatal(err)
+        }
     }
 
     /*
@@ -711,34 +737,42 @@ func getStockOverview(db *sql.DB, tickerSymbol string) {
     fmt.Printf("   Trailing PE: %s\n", data["TrailingPE"])
 }
 
+
+
 func formatRevenueTTM(revenueTTM string) string {
     revenueTTMFloat, _ := strconv.ParseFloat(revenueTTM, 64)
     return fmt.Sprintf("%.2fB", revenueTTMFloat/1e9)
 }
 
 // getStockQuote sends a request to the Alpha Vantage API to get a stock quote for a ticker symbol.
-func getStockQuote(db *sql.DB) {
+// It takes the database connection and an optional ticker symbol as arguments.
+func getStockQuote(db *sql.DB, tickerSymbol string, action string) {
     apiKey := os.Getenv("ALPHAVANTAGE_API_KEY")
     if apiKey == "" {
         fmt.Println("ALPHAVANTAGE_API_KEY environment variable is not set.")
         return
     }
 
-    reader := bufio.NewReader(os.Stdin)
+    if tickerSymbol == "" {
 
-    fmt.Print("\nEnter a ticker symbol: (e.g., AAPL, GOOG) [Ctrl+D to cancel] ")
-    var tickerSymbol string
-    tickerSymbol, err := reader.ReadString('\n')
-    if err != nil {
-        if err == io.EOF {
-            fmt.Println("Cancelled")
-            fmt.Println()
+        reader := bufio.NewReader(os.Stdin)
+
+        fmt.Print("\nEnter a ticker symbol: (e.g., AAPL, GOOG) [Ctrl+D to cancel] ")
+
+        input, err := reader.ReadString('\n')
+        if err != nil {
+            if err == io.EOF {
+                fmt.Println("Cancelled")
+                fmt.Println()
+                return
+            }
+            fmt.Println("Error reading input:", err)
             return
         }
-        fmt.Println("Error reading input:", err)
-        return
+
+        tickerSymbol = strings.TrimSpace(input)
+
     }
-    tickerSymbol = strings.TrimSpace(tickerSymbol)
 
     url := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", tickerSymbol, apiKey)
     resp, err := http.Get(url)
@@ -790,14 +824,14 @@ func getStockQuote(db *sql.DB) {
     fmt.Printf("Symbol: %s Price: %s Open: %s Change: %s Change Percent: %s\n", quote["01. symbol"], quote["05. price"], quote["02. open"], quote["09. change"], quote["10. change percent"])
     fmt.Printf("   High: %s Low: %s Previous Close: %s\n", quote["03. high"], quote["04. low"], quote["08. previous close"])
 
-    getStockOverview(db,tickerSymbol)
+    getStockOverview(db,quote["01. symbol"],quote["05. price"],action)
 
 }
 
 // reuseTicker allows the user to choose a previously entered ticker symbol from the database.
 func reuseTicker(db *sql.DB) {
     // Retrieve unique ticker symbols from the database
-    rows, err := db.Query("SELECT id, company_name, ticker, exchange FROM tickers GROUP BY ticker")
+    rows, err := db.Query("SELECT id, company_name, ticker, exchange, last_price, updated_at FROM tickers GROUP BY ticker")
     if err != nil {
         log.Fatal(err)
     }
@@ -807,9 +841,16 @@ func reuseTicker(db *sql.DB) {
 
     for rows.Next() {
         var ticker Ticker
-        err := rows.Scan(&ticker.Id, &ticker.CompanyName, &ticker.Ticker, &ticker.Exchange)
+        var updatedAt interface{}
+        err := rows.Scan(&ticker.Id, &ticker.CompanyName, &ticker.Ticker, &ticker.Exchange, &ticker.LastPrice, &updatedAt)
         if err != nil {
             log.Fatal(err)
+        }
+        if updatedAt != nil {
+            t := updatedAt.(time.Time)
+            ticker.UpdatedAt = t.Format("2006-01-02T15:04:05")
+        } else {
+            ticker.UpdatedAt = ""
         }
         tickers = append(tickers, ticker)
     }
@@ -825,7 +866,11 @@ func reuseTicker(db *sql.DB) {
 
     // Assign numbers to each result and ask the user to choose a ticker symbol
     for i, ticker := range tickers {
-        fmt.Printf("%d. %s (%s:%s)\n", i+1, ticker.CompanyName, ticker.Ticker, ticker.Exchange)
+        var updatedat string
+        if ticker.UpdatedAt != "" {
+             updatedat = extractDate(ticker.UpdatedAt) + " at " + formatTime(ticker.UpdatedAt) 
+        }
+        fmt.Printf("%d. %s (%s:%s) %s on %s\n", i+1, ticker.CompanyName, ticker.Ticker, ticker.Exchange, ticker.LastPrice, updatedat)
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(tickers))
@@ -858,7 +903,7 @@ func reuseTicker(db *sql.DB) {
     case 1:
         // Get stock overview for chosen ticker symbol
         chosenTicker := tickers[choice-1].Ticker
-        getStockOverview(db, chosenTicker)
+        getStockQuote(db, chosenTicker,"update")
     case 2:
         // Delete the selected ticker symbol
         deleteTicker(db, tickers[choice-1].Id)
@@ -888,7 +933,7 @@ func tickerMenu(db *sql.DB) {
     switch option {
     case 1:
         // Enter a new ticker symbol
-        getStockQuote(db)
+        getStockQuote(db,"","insert")
     case 2:
         // Re-use a previous ticker symbol
         reuseTicker(db)
