@@ -6,6 +6,9 @@ WORKDIR /app
 # Copy everything from the current directory to the working directory inside the container
 COPY . /app
 
+# Install clang
+RUN apt-get update && apt-get install -y clang
+
 # At build time, we don't need to initialize Go module or download dependencies
 # because postCreateCommand will handle it.
 
