@@ -11,7 +11,7 @@ This is a new project and actively under development.
 1. Shows weather by geocoding an address entered
 1. Shows stock ticker data
 1. Stores validated addresses and ticker symbols in a local SQLite3 database for re-use or deletion
-1. Stores the last temperature and last ticker price on each API call with an `updated_at` timestampe
+1. Also stores the last temperature and last ticker price on each API call with an `updated_at` timestamp
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
 
