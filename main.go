@@ -449,12 +449,17 @@ func getGeoCode(db *sql.DB) {
 	// Construct the API request
 	url := fmt.Sprintf("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=%s&benchmark=4&format=json", address)
 
+    //println(url)
+
 	// Send the request
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+    //println(resp.Status)
+    //println(resp.Body)
 
 	// Read the response body
 	defer resp.Body.Close()
