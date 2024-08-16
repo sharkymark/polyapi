@@ -27,7 +27,7 @@ I'm using a dev container so I don't have to install Go on my Mac. All I need a 
 
 ### Weather for Addresses (USGOV)
 
-NOAA's API provides weather forecast information but requires latitude and longitude coordinates. The U.S. Census bureau has an API has a geocoding that returns coordinates based on a valid address. No API keys required for both APIs.
+NOAA's API provides weather forecast information but requires latitude and longitude coordinates. The U.S. Census bureau has a geocoding API that returns coordinates based on a valid address. No API keys required for both APIs.
 
 ### Stock Quotes (Alpha Vantage)
 
