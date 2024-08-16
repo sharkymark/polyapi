@@ -52,6 +52,19 @@ type NOAAWeatherResponse struct {
     } `json:"properties"`
 }
 
+type TreasuryData struct {
+        RecordDate         string     `json:"record_date"`
+        SecurityTypeDesc   string     `json:"security_type_desc"`
+        SecurityDesc       string     `json:"security_desc"`
+        AvgInterestRateAmt string     `json:"avg_interest_rate_amt"`
+        SrcLineNbr         string      `json:"src_line_nbr"`
+}
+
+type TreasuryResponse struct {
+    Data []TreasuryData `json:"data"`
+} 
+
+
 type Address struct {
     Id              int
     MatchedAddress  string
@@ -940,6 +953,101 @@ func tickerMenu(db *sql.DB) {
     }
 }
 
+// getLatestRecords returns the latest TreasuryData records by security description.
+func getLatestRecords(data []TreasuryData) map[string]TreasuryData {
+    latestRecords := make(map[string]TreasuryData)
+    for _, treasury := range data {
+            recordDate, err := time.Parse("2006-01-02", treasury.RecordDate)
+            if err != nil {
+                    // Handle error, e.g., log or return an error
+                    continue
+            }
+            if existing, ok := latestRecords[treasury.SecurityDesc]; !ok || recordDate.After(existingRecordDate(existing)) {
+                    latestRecords[treasury.SecurityDesc] = treasury
+            }
+    }
+    return latestRecords
+}
+
+// existingRecordDate returns the record date of an existing TreasuryData record.
+func existingRecordDate(existing TreasuryData) time.Time {
+    recordDate, err := time.Parse("2006-01-02", existing.RecordDate)
+    if err != nil {
+            // Handle error, e.g., log or return an error
+            // You might consider returning a zero time or a specific error
+            return time.Time{}
+    }
+    return recordDate
+}
+
+// getTreasury sends a request to the Treasury API to get the latest treasury avg bond, note, bill data.
+// and calculates the spread between them.
+func getTreasury() {
+
+	// Construct the API request
+    // sorted by record date in descending order since it goes back years and we want the latest data
+	url := fmt.Sprintf("https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?sort=-record_date&format=json")
+
+	// Send the request
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+    //println(resp.Status)
+    //println(resp.Body)
+
+	// Read the response body
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+    //fmt.Println(string(body))
+
+	// Unmarshal the JSON response
+
+    var response TreasuryResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+    var tBill, tNote, tBond float64
+
+	// Print the coordinates
+	if len(response.Data) > 0 {
+        //println("\nThere is treasury data")
+        latestRecords := getLatestRecords(response.Data)
+        // Access the latest records by security description
+        for securityDesc, latestRecord := range latestRecords {
+            //fmt.Printf("Security Desc: %s, Record Date: %s\n", securityDesc, latestRecord.RecordDate)
+            if securityDesc == "Treasury Bills" {
+                fmt.Printf("Treasury Bills: %s\n", latestRecord.AvgInterestRateAmt)
+                tBill, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
+            }
+            if securityDesc == "Treasury Notes" {
+                fmt.Printf("Treasury Notes: %s\n", latestRecord.AvgInterestRateAmt)
+                tNote, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
+            }
+            if securityDesc == "Treasury Bonds" {
+                fmt.Printf("Treasury Bonds: %s\n", latestRecord.AvgInterestRateAmt)
+                tBond, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
+            }
+        }
+        fmt.Printf("\nSpread (Bond to Bill): %.2f\n", tBond - tBill)
+        fmt.Printf("Spread (Note to Bill): %.2f\n", tNote - tBill)
+        fmt.Printf("Spread (Bond to Note): %.2f\n", tBond - tNote)
+        fmt.Println()
+    }
+
+}
+
+
+
 // main is the entry point of the polyapi CLI tool.
 //
 //
@@ -959,7 +1067,8 @@ func main() {
         fmt.Println()
 		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
-		fmt.Println("3. Exit")
+        fmt.Println("3. Get treasury data")
+		fmt.Println("4. Exit")
         fmt.Println()
 
 		var option string
@@ -972,7 +1081,9 @@ func main() {
             geocodeMenu(db)
         case "2":
             tickerMenu(db)
-		case "3":
+        case "3":
+            getTreasury()
+		case "4":
             defer db.Close()
 			fmt.Println("\nExiting...")
 			return
