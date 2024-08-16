@@ -1,6 +1,6 @@
 # An API app written in Go
 
-polyapi retrieves information from many (poly) disparate APIs within a CLI app that you may have historically retrieve on web pages. Go is a cross-platform, statically typed and compiled programming language. A dev container (development container) is a self-contained dev environment with a Docker container allowing portability and instant creation of a dev environment without manual installation.
+polyapi retrieves information from many (poly) disparate APIs within a CLI app that you may have historically retrieved through web pages. Go is a cross-platform, statically typed and compiled programming language. A dev container (development container) is a self-contained dev environment with a Docker container allowing portability and instant creation of a dev environment without manual installation.
 
 ## Lastest update
 
