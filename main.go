@@ -1020,21 +1020,21 @@ func getTreasury() {
 
 	// Print the coordinates
 	if len(response.Data) > 0 {
-        //println("\nThere is treasury data")
+        println("\nLatest U.S. Treasury Avg Interest Rates:\n")
         latestRecords := getLatestRecords(response.Data)
         // Access the latest records by security description
         for securityDesc, latestRecord := range latestRecords {
             //fmt.Printf("Security Desc: %s, Record Date: %s\n", securityDesc, latestRecord.RecordDate)
             if securityDesc == "Treasury Bills" {
-                fmt.Printf("Treasury Bills: %s\n", latestRecord.AvgInterestRateAmt)
+                fmt.Printf("Bills: %s\n", latestRecord.AvgInterestRateAmt)
                 tBill, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
             }
             if securityDesc == "Treasury Notes" {
-                fmt.Printf("Treasury Notes: %s\n", latestRecord.AvgInterestRateAmt)
+                fmt.Printf("Notes: %s\n", latestRecord.AvgInterestRateAmt)
                 tNote, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
             }
             if securityDesc == "Treasury Bonds" {
-                fmt.Printf("Treasury Bonds: %s\n", latestRecord.AvgInterestRateAmt)
+                fmt.Printf("Bonds: %s\n", latestRecord.AvgInterestRateAmt)
                 tBond, _ = strconv.ParseFloat(latestRecord.AvgInterestRateAmt, 64)
             }
         }
