@@ -34,6 +34,10 @@ NOAA's API provides weather forecast information but requires latitude and longi
 
 Get a [free API key](https://www.alphavantage.co/support/#api-key) to retrieve stock quote data. Add an environment variable in your configuration script e.g., `.zshrc` or `bashrc` that the dev container reads. 
 
+### US Treasury Rates (USGOV)
+
+The U.S. Treasury has a [public API](https://fiscaldata.treasury.gov/api-documentation/) to retrieve financial data including their [rate API](https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/average-interest-rates-on-u-s-treasury-securities#api-quick-guide) for [average treasury rates](https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?sort=-record_date).  No API key required.
+
 ```sh
 export ALPHAVANTAGE_API_KEY=""
 ```
