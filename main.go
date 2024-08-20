@@ -423,7 +423,8 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
         fmt.Println()
         fmt.Println("1. Forecast")
         fmt.Println("2. Hourly Forecast")
-        fmt.Println("3. Return to Main Menu")
+        fmt.Println("3. Geocode Menu to choose anothe address")
+        fmt.Println("4. Main Menu")
         fmt.Println()
         
         var option string
@@ -443,6 +444,8 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
 
             //fmt.Println(string(body))
         case "3":
+            geocodeMenu(db)
+        case "4":
             return
         default:
             fmt.Println("\nInvalid option")
