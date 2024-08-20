@@ -232,6 +232,31 @@ func createDB() *sql.DB{
 // A period is a 12-hour time frame.
 func printForecast(noaaResponse NOAAWeatherResponse) {
 
+    // Call the forecast API
+    resp, err := http.Get(noaaResponse.Properties.Forecast)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    //fmt.Println(string(body))
+
+    err = json.Unmarshal(body, &noaaResponse)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    println("\nForecast: (next 2 days and a week out)")
+    println()
+
     // Check if Periods array is not empty
     if len(noaaResponse.Properties.Periods) == 0 {
         fmt.Println("No forecast periods available.")
@@ -285,7 +310,30 @@ func formatTime(startTime string) string {
 // printHourlyForecast prints the hourly weather forecast for a location.
 // Specifically, it prints the next 12 hours.
 func printHourlyForecast(noaaResponse NOAAWeatherResponse) {
-    
+
+    // Call the hourly forecast API
+    resp, err := http.Get(noaaResponse.Properties.ForecastHourly)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    err = json.Unmarshal(body, &noaaResponse)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }    
+
+    println("\nNext 12 hours:")
+    println()
+
     for i := 0; i < 12 && i < len(noaaResponse.Properties.Periods); i++ {
         period := noaaResponse.Properties.Periods[i]
         startTime := formatTime(period.StartTime)
@@ -367,6 +415,8 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     
     updateTemperature(db, noaaResponse, addressId)
 
+    printHourlyForecast(noaaResponse)
+
     // Submenu
     for {
         fmt.Println("\nNOAA Weather Submenu:")
@@ -384,50 +434,10 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
 
         switch option {
         case "1":
-            // Call the forecast API
-            resp, err := http.Get(noaaResponse.Properties.Forecast)
-            if err != nil {
-                fmt.Println(err)
-                continue
-            }
-            defer resp.Body.Close()
-
-            body, err := ioutil.ReadAll(resp.Body)
-            if err != nil {
-                fmt.Println(err)
-                continue
-            }
-
-            //fmt.Println(string(body))
-
-            err = json.Unmarshal(body, &noaaResponse)
-            if err != nil {
-                fmt.Println(err)
-                return
-            }
             
             printForecast(noaaResponse)
 
         case "2":
-            // Call the hourly forecast API
-            resp, err := http.Get(noaaResponse.Properties.ForecastHourly)
-            if err != nil {
-                fmt.Println(err)
-                continue
-            }
-            defer resp.Body.Close()
-
-            body, err := ioutil.ReadAll(resp.Body)
-            if err != nil {
-                fmt.Println(err)
-                continue
-            }
-
-            err = json.Unmarshal(body, &noaaResponse)
-            if err != nil {
-                fmt.Println(err)
-                continue
-            }
 
             printHourlyForecast(noaaResponse)
 
