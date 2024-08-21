@@ -385,6 +385,12 @@ func updateTemperature(db *sql.DB, noaaResponse NOAAWeatherResponse, addressId i
 
 }
 
+//
+func generateGoogleMapsURL(lat, lon string) string {
+    return fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%s,%s", lat, lon)
+}
+
+
 // getNOAAWeather sends a request to the NOAA API to get the weather forecast for a location.
 // it takes the latitude and longitude of the location as arguments.
 // it is called from geocode function.
@@ -416,6 +422,9 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     updateTemperature(db, noaaResponse, addressId)
 
     printHourlyForecast(noaaResponse)
+
+    googleMapsURL := generateGoogleMapsURL(lat, lon)
+    fmt.Printf("%s\n", googleMapsURL)
 
     // Submenu
     for {
@@ -511,6 +520,9 @@ func getGeoCode(db *sql.DB) {
 		fmt.Printf("  Latitude: %f\n", response.Result.AddressMatches[0].Coordinates.Y)
 		fmt.Printf("  Longitude: %f\n", response.Result.AddressMatches[0].Coordinates.X)
 
+        googleMapsURL := generateGoogleMapsURL(fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.Y), fmt.Sprintf("%f", response.Result.AddressMatches[0].Coordinates.X))
+        fmt.Printf("  %s\n", googleMapsURL)
+
         // Insert new address into database
         matchedAddress := response.Result.AddressMatches[0].MatchedAddress
         var result sql.Result
@@ -595,7 +607,13 @@ func reuseAddress(db *sql.DB) {
                 return ""
             }())
         }
-        fmt.Printf("%d. %s ~ %s\n  @ lat: %f, lon: %f\n", i+1, address.MatchedAddress, extraInfo, address.Latitude, address.Longitude)
+        fmt.Printf("%d. %s ~ %s\n", i+1, address.MatchedAddress, extraInfo)
+
+        // Add a new Printf for the Google Maps URL
+        //googleMapsURL := fmt.Sprintf("https://www.google.com/maps/@%f,%f,17z", address.Latitude, address.Longitude)
+        //fmt.Printf("   %s\n", googleMapsURL)
+        googleMapsURL := fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", address.Latitude, address.Longitude)
+        fmt.Printf("  %s\n", googleMapsURL)
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
