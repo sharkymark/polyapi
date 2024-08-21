@@ -614,6 +614,7 @@ func reuseAddress(db *sql.DB) {
         //fmt.Printf("   %s\n", googleMapsURL)
         googleMapsURL := fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", address.Latitude, address.Longitude)
         fmt.Printf("  %s\n", googleMapsURL)
+        fmt.Println()
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
