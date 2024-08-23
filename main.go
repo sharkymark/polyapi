@@ -13,6 +13,8 @@ import (
     "time"
     "io"
     "database/sql"
+    "sort"
+    "bytes"
 	_ "github.com/mattn/go-sqlite3"
 	
 )
@@ -63,6 +65,32 @@ type TreasuryData struct {
 type TreasuryResponse struct {
     Data []TreasuryData `json:"data"`
 } 
+
+type BLSRequest struct {
+    SeriesID  []string `json:"seriesid"`
+    StartYear string   `json:"startyear"`
+    EndYear   string   `json:"endyear"`
+}
+
+type BLSResponse struct {
+    Results struct {
+        Series []BLSSeries `json:"series"`
+    } `json:"Results"`
+}
+
+type BLSSeries struct {
+    SeriesID string     `json:"seriesID"`
+    Data     []BLSEntry `json:"data"`
+}
+
+type BLSEntry struct {
+    Year     string `json:"year"`
+    Period   string `json:"period"`
+    Value    string `json:"value"`
+    Footnote []struct {
+        Text string `json:"text"`
+    } `json:"footnotes"`
+}
 
 
 type Address struct {
@@ -1078,6 +1106,102 @@ func getTreasury() {
 
 }
 
+func processBLSData(series BLSSeries) {
+
+    switch series.SeriesID {
+    case "PCU22112222112241":
+        fmt.Println("\nProducer Price Index (PPI) Data:")
+    case "CUUR0000SA0L1E":
+        fmt.Println("\nConsumer Price Index (CPI) Data:")
+    default:
+        fmt.Println("\n")
+    }
+
+    fmt.Printf("Series: %s\n", series.SeriesID)
+
+    // Sort data by year and period
+    sort.Slice(series.Data, func(i, j int) bool {
+        yearI, _ := strconv.Atoi(series.Data[i].Year)
+        yearJ, _ := strconv.Atoi(series.Data[j].Year)
+        return yearI < yearJ || (yearI == yearJ && series.Data[i].Period < series.Data[j].Period)
+    })
+
+    latestMonth := series.Data[len(series.Data)-1]
+    previousMonth := series.Data[len(series.Data)-2]
+
+    latestValue, _ := strconv.ParseFloat(latestMonth.Value, 64)
+    previousValue, _ := strconv.ParseFloat(previousMonth.Value, 64)
+    change := latestValue - previousValue
+    percentageChange := (change / previousValue) * 100
+
+    fmt.Printf("Latest month: %s - Value: %f\n", latestMonth.Period, latestValue)
+    fmt.Printf("Previous month: %s - Value: %f\n", previousMonth.Period, previousValue)
+    fmt.Printf("Change: %.2f (%.2f%%)\n", change, percentageChange)
+
+    // Calculate 12-month change if there's enough data
+    if len(series.Data) >= 13 {
+        sameMonth12MonthsAgo := series.Data[len(series.Data)-13]
+        sameMonth12MonthsAgoValue, _ := strconv.ParseFloat(sameMonth12MonthsAgo.Value, 64)
+        twelveMonthChange := latestValue - sameMonth12MonthsAgoValue
+        twelveMonthPercentageChange := (twelveMonthChange / sameMonth12MonthsAgoValue) * 100
+        fmt.Printf("12-month change: %.2f (%.2f%%)\n", twelveMonthChange, twelveMonthPercentageChange)
+    } else {
+        fmt.Println("Not enough data to calculate 12-month change")
+    }
+    fmt.Println()
+}
+
+
+func getBLSData() {
+
+	// Get the current year and the previous year
+	currentYear := time.Now().Year()
+	previousYear := currentYear - 1
+
+    // Define the data for the POST request
+    reqData := BLSRequest{
+        SeriesID:  []string{"PCU22112222112241", "CUUR0000SA0L1E"},
+        StartYear: strconv.Itoa(previousYear),
+        EndYear:   strconv.Itoa(currentYear),
+    }
+
+    // Marshal the request data into JSON
+    jsonData, err := json.Marshal(reqData)
+    if err != nil {
+        fmt.Println("Error marshaling JSON:", err)
+        return
+    }
+
+    // Make the POST request
+    url := "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+    resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+    if err != nil {
+        fmt.Println("Error making POST request:", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    // Read the response body
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println("Error reading response body:", err)
+        return
+    }
+
+    // Unmarshal the JSON response
+    var blsResponse BLSResponse
+    err = json.Unmarshal(body, &blsResponse)
+    if err != nil {
+        fmt.Println("Error unmarshaling JSON:", err)
+        return
+    }
+
+    // Process and print the response data
+    for _, series := range blsResponse.Results.Series {
+        processBLSData(series)
+    }
+}
+
 
 
 // main is the entry point of the polyapi CLI tool.
@@ -1100,7 +1224,8 @@ func main() {
 		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
         fmt.Println("3. Get treasury data")
-		fmt.Println("4. Exit")
+        fmt.Println("4. Get bls ppi and cpi data")
+		fmt.Println("5. Exit")
         fmt.Println()
 
 		var option string
@@ -1115,7 +1240,9 @@ func main() {
             tickerMenu(db)
         case "3":
             getTreasury()
-		case "4":
+        case "4":
+            getBLSData()
+		case "5":
             defer db.Close()
 			fmt.Println("\nExiting...")
 			return
