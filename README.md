@@ -12,7 +12,9 @@ This is a new project and actively under development.
 1. Shows stock ticker data
 1. Stores validated addresses and ticker symbols in a local SQLite3 database for re-use or deletion
 1. Also stores the last temperature and last ticker price on each API call with an `updated_at` timestamp
-1. Retrieves lastest average US Treasury bond, note and bill rates and app calculates spreads. To-Do: store in SQLite3
+1. Retrieves latest average US Treasury bond, note and bill rates and app calculates spreads. 
+1. Retrieves latest PPI and CPI from U.S. Bureau of Labor Statistics
+
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
 
@@ -41,6 +43,10 @@ export ALPHAVANTAGE_API_KEY=""
 ### US Treasury Rates (USGOV)
 
 The U.S. Treasury has a [public API](https://fiscaldata.treasury.gov/api-documentation/) to retrieve financial data including their [rate API](https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/average-interest-rates-on-u-s-treasury-securities#api-quick-guide) for [average treasury rates](https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?sort=-record_date).  No API key required.
+
+### US PPI and CPI (USGOV)
+
+The U.S. Bureau of Labor Statistics has a [public API](https://www.bls.gov/developers/api_faqs.htm) to retrieve the producer price index "PPI" and consumer price index "CPI"
 
 ## Creating a binary
 
