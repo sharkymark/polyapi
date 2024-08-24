@@ -92,6 +92,13 @@ type BLSEntry struct {
     } `json:"footnotes"`
 }
 
+type FredResponse struct {
+	Observations []struct {
+		Date  string `json:"date"`
+		Value string `json:"value"`
+	} `json:"observations"`
+}
+
 
 type Address struct {
     Id              int
@@ -1112,7 +1119,13 @@ func processBLSData(series BLSSeries) {
     case "PCU22112222112241":
         fmt.Println("\nProducer Price Index (PPI) Data:")
     case "CUUR0000SA0L1E":
+        fmt.Println("\nConsumer Price Index (CPI) Data, less food & energy:")
+    case "CUSR0000SA0":
         fmt.Println("\nConsumer Price Index (CPI) Data:")
+    case "LNS14000000":
+        fmt.Println("\nUnemployment Rate Data:")
+    case "CES0000000001":
+        fmt.Println("\nNonfarm Payroll Data:")
     default:
         fmt.Println("\n")
     }
@@ -1160,7 +1173,7 @@ func getBLSData() {
 
     // Define the data for the POST request
     reqData := BLSRequest{
-        SeriesID:  []string{"PCU22112222112241", "CUUR0000SA0L1E"},
+        SeriesID:  []string{"PCU22112222112241", "CUUR0000SA0L1E", "CUSR0000SA0", "LNS14000000", "CES0000000001"},
         StartYear: strconv.Itoa(previousYear),
         EndYear:   strconv.Itoa(currentYear),
     }
@@ -1203,6 +1216,124 @@ func getBLSData() {
 }
 
 
+func fetchSeriesData(seriesID, startYear, endYear string) {
+
+    apiKey := os.Getenv("FRED_API_KEY")
+    if apiKey == "" {
+        fmt.Println("FRED_API_KEY environment variable is not set.")
+        return
+    }
+
+    url := fmt.Sprintf("https://api.stlouisfed.org/fred/series/observations?series_id=%s&observation_start=%s&observation_end=%s&api_key=%s&limit=13&file_type=json&sort_order=desc", seriesID, startYear, endYear, apiKey)
+    resp, err := http.Get(url)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    
+    defer resp.Body.Close()
+
+    /*
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    fmt.Println(string(body))
+
+    if info, ok := data["Information"]; ok {
+        fmt.Println(info)
+        return
+    }
+
+    */
+
+    var data FredResponse
+
+    err = json.NewDecoder(resp.Body).Decode(&data)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+	// Print the results with a friendly header based on Series ID
+
+    println()
+
+	switch seriesID {
+	case "FEDFUNDS":
+		fmt.Printf("Federal Funds Rate: ")
+	case "ICSA":
+		fmt.Printf("Initial Claims for Unemployment Insurance: ")
+	case "RSAFS":
+		fmt.Printf("Retail Sales: ")
+    case "UNRATE":
+        fmt.Printf("Unemployment Rate: ")
+    case "GDP":
+        fmt.Printf("Gross Domestic Product: ")
+    case "DGORDER":
+        fmt.Printf("Durable Goods Orders: ")
+    case "INDPRO":
+        fmt.Printf("Industrial Production: ")
+    case "PCE":
+        fmt.Printf("Personal Consumption Expenditures: ")
+	default:
+		fmt.Printf("Series ID: ")
+	}
+
+
+
+	if len(data.Observations) > 0 {
+		latest := data.Observations[0] // The first element is the latest due to descending sort
+		fmt.Printf("%s on %s\n", latest.Value, latest.Date)
+
+		// Ensure there are at least 2 observations to calculate month-over-month change
+		if len(data.Observations) > 1 {
+			previous := data.Observations[1]
+			latestValue, _ := strconv.ParseFloat(latest.Value, 64)
+			previousValue, _ := strconv.ParseFloat(previous.Value, 64)
+			change := latestValue - previousValue
+			percentageChange := (change / previousValue) * 100
+			fmt.Printf("Change from previous month: %.2f (%.2f%%)\n", change, percentageChange)
+		} else {
+			fmt.Println("Not enough data to calculate month-over-month change")
+		}
+
+		// Calculate 12-month change if there's enough data
+		if len(data.Observations) >= 13 {
+			yearAgo := data.Observations[12] // 12th element is data from 12 months ago
+			latestValue, _ := strconv.ParseFloat(latest.Value, 64)
+			yearAgoValue, _ := strconv.ParseFloat(yearAgo.Value, 64)
+			yearChange := latestValue - yearAgoValue
+			yearPercentageChange := (yearChange / yearAgoValue) * 100
+			fmt.Printf("Change from 12 months ago: %.2f (%.2f%%)\n", yearChange, yearPercentageChange)
+		} else {
+			fmt.Println("Not enough data to calculate 12-month change")
+		}
+
+
+	} else {
+		fmt.Println("No data available in the specified date range")
+	}
+
+	fmt.Printf("FRED Series ID: %s\n", seriesID)
+
+    println()
+
+}
+
+func getFRED() {
+
+    seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "DGORDER", "INDPRO", "PCE"}
+	now := time.Now()
+	currentMonth := now.Format("2006-01-01")
+	oneYearAgo := now.AddDate(-1, 0, 0).Format("2006-01-01")
+
+	for _, seriesID := range seriesIDs {
+		fetchSeriesData(seriesID, oneYearAgo, currentMonth)
+	}
+
+}
 
 // main is the entry point of the polyapi CLI tool.
 //
@@ -1224,8 +1355,9 @@ func main() {
 		fmt.Println("1. Get weather for an address")
         fmt.Println("2. Get stock quote")
         fmt.Println("3. Get treasury data")
-        fmt.Println("4. Get bls ppi and cpi data")
-		fmt.Println("5. Exit")
+        fmt.Println("4. Get bls economic data like unemployment, ppi, cpi")
+        fmt.Println("5. Get federal reserve data like federal funds rate")
+		fmt.Println("6. Exit")
         fmt.Println()
 
 		var option string
@@ -1242,7 +1374,9 @@ func main() {
             getTreasury()
         case "4":
             getBLSData()
-		case "5":
+        case "5":
+            getFRED()
+		case "6":
             defer db.Close()
 			fmt.Println("\nExiting...")
 			return

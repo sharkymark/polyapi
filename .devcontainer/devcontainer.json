@@ -5,7 +5,8 @@
     "context": "."
   },
   "containerEnv": {
-    "ALPHAVANTAGE_API_KEY": "${localEnv:ALPHAVANTAGE_API_KEY}"
+    "ALPHAVANTAGE_API_KEY": "${localEnv:ALPHAVANTAGE_API_KEY}",
+    "FRED_API_KEY": "${localEnv:FRED_API_KEY}"
   },
   "customizations": {
     "vscode": {

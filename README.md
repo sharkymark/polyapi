@@ -48,6 +48,10 @@ The U.S. Treasury has a [public API](https://fiscaldata.treasury.gov/api-documen
 
 The U.S. Bureau of Labor Statistics has a [public API](https://www.bls.gov/developers/api_faqs.htm) to retrieve the producer price index "PPI" and consumer price index "CPI"
 
+### US Federal Reserve (USGOV)
+
+The U.S. Federal Reserve has a [public API called FRED](https://www.bls.gov/developers/home.htm#) to retrieve economic statistics. It does require an [API key](https://fred.stlouisfed.org/docs/api/api_key.html)
+
 ## Creating a binary
 
 `.gitignore` is set to ignore `main` and `polyapi` binaries to reduce repository size. `git build .` uses the OS and architecture of the development machine. To create other binaries, use examples like:
