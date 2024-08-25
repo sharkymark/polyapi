@@ -14,6 +14,7 @@ This is a new project and actively under development.
 1. Also stores the last temperature and last ticker price on each API call with an `updated_at` timestamp
 1. Retrieves latest average US Treasury bond, note and bill rates and app calculates spreads. 
 1. Retrieves latest PPI and CPI from U.S. Bureau of Labor Statistics
+1. Retrieves additional economic data like GDP and unemployment rate from U.S. Federal Reserve
 
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
@@ -50,7 +51,11 @@ The U.S. Bureau of Labor Statistics has a [public API](https://www.bls.gov/devel
 
 ### US Federal Reserve (USGOV)
 
-The U.S. Federal Reserve has a [public API called FRED](https://www.bls.gov/developers/home.htm#) to retrieve economic statistics. It does require an [API key](https://fred.stlouisfed.org/docs/api/api_key.html)
+The U.S. Federal Reserve has a [public API called FRED](https://www.bls.gov/developers/home.htm#) to retrieve economic statistics. It does require an [API key](https://fred.stlouisfed.org/docs/api/api_key.html) Add an environment variable in your configuration script e.g., `.zshrc` or `bashrc` that the dev container reads. 
+
+```sh
+export FRED_API_KEY=""
+```
 
 ## Creating a binary
 
