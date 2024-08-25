@@ -15,6 +15,7 @@ import (
     "database/sql"
     "sort"
     "bytes"
+    "sync"
 	_ "github.com/mattn/go-sqlite3"
 	
 )
@@ -1329,9 +1330,18 @@ func getFRED() {
 	currentMonth := now.Format("2006-01-01")
 	oneYearAgo := now.AddDate(-1, 0, 0).Format("2006-01-01")
 
+    var wg sync.WaitGroup
+    wg.Add(len(seriesIDs))
+
+    // Fetch data concurrently
 	for _, seriesID := range seriesIDs {
-		fetchSeriesData(seriesID, oneYearAgo, currentMonth)
+        go func(id string) {
+            defer wg.Done()
+		    fetchSeriesData(id, oneYearAgo, currentMonth)
+        }(seriesID)
 	}
+
+    wg.Wait() // Wait for all goroutines to finish
 
 }
 
