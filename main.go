@@ -32,6 +32,71 @@ type GeoCodingResponse struct {
 	} `json:"result"`
 }
 
+type Measurement struct {
+	UnitCode      string  `json:"unitCode"`
+	Value         *float64 `json:"value"` 
+	QualityControl string  `json:"qualityControl"`
+}
+
+type CloudLayer struct {
+	Base   Measurement `json:"base"`
+	Amount string      `json:"amount"`
+}
+
+type Properties struct {
+	ID                       string           `json:"@id"`
+	Type                     string           `json:"@type"`
+	Elevation                Measurement      `json:"elevation"`
+	Station                  string           `json:"station"`
+	Timestamp                string           `json:"timestamp"`
+	RawMessage               string           `json:"rawMessage"`
+	TextDescription          string           `json:"textDescription"`
+	Icon                     string           `json:"icon"`
+	PresentWeather           []interface{}    `json:"presentWeather"`
+	Temperature              Measurement      `json:"temperature"`
+	Dewpoint                 Measurement      `json:"dewpoint"`
+	WindDirection            Measurement      `json:"windDirection"`
+	WindSpeed                Measurement      `json:"windSpeed"`
+	WindGust                 Measurement      `json:"windGust"`
+	BarometricPressure       Measurement      `json:"barometricPressure"`
+	SeaLevelPressure         Measurement      `json:"seaLevelPressure"`
+	Visibility               Measurement      `json:"visibility"`
+	MaxTemperatureLast24Hours Measurement     `json:"maxTemperatureLast24Hours"`
+	MinTemperatureLast24Hours Measurement     `json:"minTemperatureLast24Hours"`
+	PrecipitationLastHour    Measurement      `json:"precipitationLastHour"`
+	PrecipitationLast3Hours  Measurement      `json:"precipitationLast3Hours"`
+	PrecipitationLast6Hours  Measurement      `json:"precipitationLast6Hours"`
+	RelativeHumidity         Measurement      `json:"relativeHumidity"`
+	WindChill                Measurement      `json:"windChill"`
+	HeatIndex                Measurement      `json:"heatIndex"`
+	CloudLayers              []CloudLayer     `json:"cloudLayers"`
+}
+
+type ObservationResponse struct {
+	Properties Properties   `json:"properties"`
+}
+
+type Geometry struct {
+    Type        string    `json:"type"`
+    Coordinates []float64 `json:"coordinates"`
+}
+
+type Station struct {
+    Geometry Geometry `json:"geometry"`
+    Properties struct {
+        Name              string `json:"name"`
+        StationIdentifier string `json:"stationIdentifier"`
+    } `json:"properties"`
+}
+
+type StationsResponse struct {
+    Features []Station `json:"features"`
+}
+
+type Observation struct {
+    Properties Properties `json:"properties"`
+}
+
 type NOAAWeatherResponse struct {
     Properties struct {
         Forecast          string `json:"forecast"`
@@ -316,9 +381,30 @@ func printForecast(noaaResponse NOAAWeatherResponse) {
     }
 }
 
-//  extractDate extracts the date from a timestamp.
+// extractDate extracts the date from a timestamp, handling both with and without timezone offset.
 func extractDate(timestamp string) string {
-    t, _ := time.Parse("2006-01-02T15:04:05", timestamp)
+    // Define formats for timestamps with and without timezone offset
+    formats := []string{
+        time.RFC3339, // e.g., "2024-08-26T14:25:00+00:00"
+        "2006-01-02T15:04:05", // e.g., "2024-08-26T14:25:00" (without offset)
+    }
+
+    var t time.Time
+    var err error
+
+    // Try parsing with each format
+    for _, format := range formats {
+        t, err = time.Parse(format, timestamp)
+        if err == nil {
+            break // Successfully parsed, exit loop
+        }
+    }
+
+    if err != nil {
+        fmt.Println("Error parsing timestamp:", err)
+        return ""
+    }
+
     return t.Format("2006-01-02")
 }
 
@@ -426,6 +512,74 @@ func generateGoogleMapsURL(lat, lon string) string {
     return fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%s,%s", lat, lon)
 }
 
+// Helper function to convert Celsius to Fahrenheit
+func celsiusToFahrenheit(celsius float64) float64 {
+    return (celsius * 9 / 5) + 32
+}
+
+// Fetches the nearest observation stations and returns their information
+func getNearestStations(lat, lon string) ([]Station, error) {
+    url := fmt.Sprintf("https://api.weather.gov/points/%s,%s/stations", lat, lon)
+    resp, err := http.Get(url)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var stationsResponse StationsResponse
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, err
+    }
+
+    err = json.Unmarshal(body, &stationsResponse)
+    if err != nil {
+        return nil, err
+    }
+
+    // Assuming you want the 2 closest stations
+    closestStations := stationsResponse.Features[:2]
+    return closestStations, nil
+}
+
+// Fetches the observation data for a specific station
+func getObservation(stationID string) (Observation, error) {
+    url := fmt.Sprintf("https://api.weather.gov/stations/%s/observations/latest", stationID)
+    resp, err := http.Get(url)
+    if err != nil {
+        return Observation{}, err
+    }
+    defer resp.Body.Close()
+
+    var observation Observation
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return Observation{}, err
+    }
+
+    err = json.Unmarshal(body, &observation)
+    if err != nil {
+        return Observation{}, err
+    }
+
+    return observation, nil
+}
+
+// Print observation information
+func printObservation(observation Properties) {
+
+    var observationDateTime = extractDate(observation.Timestamp) + " at " + formatTime(observation.Timestamp)
+
+	fmt.Printf("  Timestamp: %s\n", observationDateTime)
+	fmt.Printf("  Temperature: %.2f°F\n", celsiusToFahrenheit(*observation.Temperature.Value))
+	fmt.Printf("  Dewpoint: %.2f°F\n", celsiusToFahrenheit(*observation.Dewpoint.Value))
+	fmt.Printf("  Wind Speed: %.2f km/h\n", *observation.WindSpeed.Value)
+	fmt.Printf("  Humidity: %.2f%%\n", *observation.RelativeHumidity.Value)
+	fmt.Printf("  Pressure: %.2f Pa\n", *observation.BarometricPressure.Value)
+	fmt.Printf("  Description: %s\n", observation.TextDescription)
+    fmt.Println()
+}
+
 
 // getNOAAWeather sends a request to the NOAA API to get the weather forecast for a location.
 // it takes the latitude and longitude of the location as arguments.
@@ -434,6 +588,33 @@ func generateGoogleMapsURL(lat, lon string) string {
 func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     reader := bufio.NewReader(os.Stdin)
     
+    // Fetch nearest stations
+    stations, err := getNearestStations(lat, lon)
+    if err != nil {
+        fmt.Println("Error fetching nearest stations:", err)
+        return
+    }
+
+    // Print observation data for the 2 closest stations
+    println("\nTwo nearest NOAA weather stations:")
+    println()
+    for i, station := range stations {
+
+        lat := station.Geometry.Coordinates[1]
+        lon := station.Geometry.Coordinates[0]
+        mapsURL := generateGoogleMapsURL(fmt.Sprintf("%f", lat), fmt.Sprintf("%f", lon))
+
+        fmt.Printf("Station %d: %s\n", i+1, station.Properties.Name)
+        fmt.Printf("  Identifier: %s\n", station.Properties.StationIdentifier)
+        fmt.Printf("  Location: %s\n", mapsURL)
+        observation, err := getObservation(station.Properties.StationIdentifier)
+        if err != nil {
+            fmt.Println("Error fetching observation data:", err)
+            continue
+        }
+        printObservation(observation.Properties)
+    }
+
     // First NOAA API call
     url := fmt.Sprintf("https://api.weather.gov/points/%s,%s", lat, lon)
     resp, err := http.Get(url)
@@ -456,8 +637,6 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     }
     
     updateTemperature(db, noaaResponse, addressId)
-
-    printHourlyForecast(noaaResponse)
 
     googleMapsURL := generateGoogleMapsURL(lat, lon)
     fmt.Printf("%s\n", googleMapsURL)
