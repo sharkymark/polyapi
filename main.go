@@ -383,9 +383,13 @@ func printForecast(noaaResponse NOAAWeatherResponse) {
 
 // extractDate extracts the date from a timestamp, handling both with and without timezone offset.
 func extractDate(timestamp string) string {
+    if timestamp == "" {
+        return "Unknown Date"
+    }
+
     // Define formats for timestamps with and without timezone offset
     formats := []string{
-        time.RFC3339, // e.g., "2024-08-26T14:25:00+00:00"
+        time.RFC3339,         // e.g., "2024-08-26T14:25:00+00:00"
         "2006-01-02T15:04:05", // e.g., "2024-08-26T14:25:00" (without offset)
     }
 
@@ -396,37 +400,44 @@ func extractDate(timestamp string) string {
     for _, format := range formats {
         t, err = time.Parse(format, timestamp)
         if err == nil {
-            break // Successfully parsed, exit loop
+            return t.Format("2006-01-02") // Successfully parsed, return formatted date
         }
     }
 
-    if err != nil {
-        fmt.Println("Error parsing timestamp:", err)
-        return ""
-    }
-
-    return t.Format("2006-01-02")
+    // If none of the formats worked
+    fmt.Println("Error parsing timestamp:", err)
+    return "Unknown Date"
 }
 
-// formatTime formats the start time of a period.
-func formatTime(startTime string) string {
-    startTime = strings.Split(startTime, "T")[1]
-    hourMinute := strings.Split(startTime, "-")[0]
-    hourMinuteParts := strings.Split(hourMinute, ":")
-    hour := hourMinuteParts[0]
-    minute := hourMinuteParts[1]
-    ampm := "AM"
-    hourInt, _ := strconv.Atoi(hour)
-    if hourInt >= 12 {
-        ampm = "PM"
+
+// formatTime formats the time part of the timestamp.
+func formatTime(timestamp string) string {
+    if timestamp == "" {
+        return "Unknown Time"
     }
-    if hourInt == 0 {
-        hour = "12"
-    } else if hourInt > 12 {
-        hour = strconv.Itoa(hourInt - 12)
+
+    // Define formats for timestamps with and without timezone offset
+    formats := []string{
+        time.RFC3339,         // e.g., "2024-08-26T14:25:00+00:00"
+        "2006-01-02T15:04:05", // e.g., "2024-08-26T14:25:00" (without offset)
     }
-    return fmt.Sprintf("%s:%s %s", hour, minute, ampm)
+
+    var t time.Time
+    var err error
+
+    // Try parsing with each format
+    for _, format := range formats {
+        t, err = time.Parse(format, timestamp)
+        if err == nil {
+            return t.Format("03:04 PM") // Format time as "03:04 PM"
+        }
+    }
+
+    // If none of the formats worked
+    fmt.Println("Error parsing timestamp:", err)
+    return "Unknown Time"
 }
+
 
 
 // printHourlyForecast prints the hourly weather forecast for a location.
@@ -538,7 +549,7 @@ func getNearestStations(lat, lon string) ([]Station, error) {
     }
 
     // Assuming you want the 2 closest stations
-    closestStations := stationsResponse.Features[:2]
+    closestStations := stationsResponse.Features[:4]
     return closestStations, nil
 }
 
@@ -571,12 +582,27 @@ func printObservation(observation Properties) {
     var observationDateTime = extractDate(observation.Timestamp) + " at " + formatTime(observation.Timestamp)
 
 	fmt.Printf("  Timestamp: %s\n", observationDateTime)
-	fmt.Printf("  Temperature: %.2f°F\n", celsiusToFahrenheit(*observation.Temperature.Value))
-	fmt.Printf("  Dewpoint: %.2f°F\n", celsiusToFahrenheit(*observation.Dewpoint.Value))
-	fmt.Printf("  Wind Speed: %.2f km/h\n", *observation.WindSpeed.Value)
-	fmt.Printf("  Humidity: %.2f%%\n", *observation.RelativeHumidity.Value)
-	fmt.Printf("  Pressure: %.2f Pa\n", *observation.BarometricPressure.Value)
-	fmt.Printf("  Description: %s\n", observation.TextDescription)
+    if observation.Temperature.Value != nil {
+	    fmt.Printf("  Temperature: %.2f°F\n", celsiusToFahrenheit(*observation.Temperature.Value))
+    }
+    if observation.Dewpoint.Value != nil {
+	    fmt.Printf("  Dewpoint: %.2f°F\n", celsiusToFahrenheit(*observation.Dewpoint.Value))
+    }
+    if observation.WindSpeed.Value != nil {
+        fmt.Printf("  Wind Speed: %.2f km/h\n", *observation.WindSpeed.Value)
+    }
+	if observation.WindDirection.Value != nil {
+        fmt.Printf("  Wind Direction: %.2f°\n", *observation.WindDirection.Value)
+    }
+    if observation.RelativeHumidity.Value != nil {
+        fmt.Printf("  Humidity: %.2f%%\n", *observation.RelativeHumidity.Value)
+    }
+	if observation.BarometricPressure.Value != nil {
+        fmt.Printf("  Pressure: %.2f Pa\n", *observation.BarometricPressure.Value)
+    }
+	if observation.Visibility.Value != nil {
+        fmt.Printf("  Description: %s\n", observation.TextDescription)
+    }
     fmt.Println()
 }
 
@@ -596,7 +622,7 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     }
 
     // Print observation data for the 2 closest stations
-    println("\nTwo nearest NOAA weather stations:")
+    println("\nNOAA weather stations: (sorted by nearest to farthest)")
     println()
     for i, station := range stations {
 
@@ -638,6 +664,7 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     
     updateTemperature(db, noaaResponse, addressId)
 
+    println()
     googleMapsURL := generateGoogleMapsURL(lat, lon)
     fmt.Printf("%s\n", googleMapsURL)
 
