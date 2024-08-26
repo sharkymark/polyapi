@@ -850,13 +850,6 @@ func reuseAddress(db *sql.DB) {
             }())
         }
         fmt.Printf("%d. %s ~ %s\n", i+1, address.MatchedAddress, extraInfo)
-
-        // Add a new Printf for the Google Maps URL
-        //googleMapsURL := fmt.Sprintf("https://www.google.com/maps/@%f,%f,17z", address.Latitude, address.Longitude)
-        //fmt.Printf("   %s\n", googleMapsURL)
-        googleMapsURL := fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", address.Latitude, address.Longitude)
-        fmt.Printf("  %s\n", googleMapsURL)
-        fmt.Println()
     }
 
     fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
