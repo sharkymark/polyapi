@@ -67,9 +67,9 @@ export FRED_API_KEY=""
 `.gitignore` is set to ignore `main` and `polyapi` binaries to reduce repository size. `git build .` uses the OS and architecture of the development machine. To create other binaries, use examples like:
 
 ```sh
-GOOS=darwin GOARCH=arm64 go build -o polyapi_darwin_arm64
-GOOS=linux GOARCH=amd64 go build -o polyapi_linux_amd64
-GOOS=windows GOARCH=amd64 go build -o polyapi_windows_amd64.exe
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o polyapi_darwin_arm64
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o polyapi_linux_amd64
+CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o polyapi_windows_amd64.exe
 ```
 
 ## Resources
