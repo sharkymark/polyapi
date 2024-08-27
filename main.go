@@ -1728,8 +1728,16 @@ func getFootballSchedule(league string) {
 
             fmt.Println(chosenEvent.Competitions[0].Competitors[1].Team.DisplayName)
             fmt.Println()
+            var repeatCount = 0
             for _, link := range chosenEvent.Competitions[0].Competitors[1].Team.Links {
-                fmt.Println(link.Text + ": ", link.Href)
+                if link.Text == "Clubhouse" && repeatCount == 0 {
+                    repeatCount++
+                    fmt.Println(link.Text + ": ", link.Href)
+                }
+
+                if link.Text != "Clubhouse" {
+                    fmt.Println(link.Text + ": ", link.Href)
+                }
             }
 
             fmt.Println()
