@@ -165,6 +165,79 @@ type FredResponse struct {
 	} `json:"observations"`
 }
 
+type Event struct {
+    ID        string    `json:"id"`
+    Name      string    `json:"name"`
+    ShortName string    `json:"shortName"`
+    Competitions []struct {
+        Competitors []struct {
+            Team struct {
+                ID   string `json:"id"`
+                Name string `json:"name"`
+                DisplayName string `json:"displayName"`
+                Links []struct {
+                    Href string `json:"href"`
+                    Text string `json:"text"`
+                } `json:"links"`
+            } `json:"team"`
+            HomeAway string `json:"homeAway"`
+			Links []struct {
+				Href string `json:"href"`
+				Text string `json:"text"`
+			} `json:"links"`
+            Score string `json:"score"`
+            Records []struct {
+                Name  string `json:"name"`
+                Summary string `json:"summary"`
+            } `json:"records"`
+        } `json:"competitors"`
+        Broadcasts []struct {
+            Market string `json:"market"`
+            Names[]string `json:"names"`
+        } `json:"broadcasts"`
+        Headlines []Headline `json:"headlines"`
+    } `json:"competitions"`
+    Status struct {
+        DisplayClock string `json:"displayClock"`
+        Period int `json:"period"`
+        Type struct {
+            Detail string `json:"detail"`
+            ShortDetail string `json:"shortDetail"`
+            Description string `json:"description"`
+            State string `json:"state"`
+            Completed bool `json:"completed"`
+        } `json:"type"`
+    } `json:"status"`
+    Links []struct {
+        Href string `json:"href"`
+        Text string `json:"text"`
+    } `json:"links"`
+    Weather struct {
+        DisplayValue string `json:"displayValue"`
+        Temperature int `json:"temperature"`
+        Link struct {
+            Href string `json:"href"`
+            Text string `json:"text"`
+        } `json:"link"`
+    } `json:"weather"`
+}
+
+type Headline struct {
+    Type string `json:"type"`
+    Description string `json:"description"`
+    ShortLinkText string `json:"shortLinkText"`
+    Video []struct {
+        Links struct {
+            Web struct {
+                Href string `json:"href"`
+            } `json:"web"`
+        } `json:"links"`
+    } `json:"video"`
+}
+
+type NFLSchedule struct {
+    Events []Event `json:"events"`
+}
 
 type Address struct {
     Id              int
@@ -697,6 +770,7 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
         case "3":
             geocodeMenu(db)
         case "4":
+            reader.Reset(os.Stdin)
             return
         default:
             fmt.Println("\nInvalid option")
@@ -1544,6 +1618,155 @@ func getFRED() {
 
 }
 
+func getFootballSchedule(league string) {
+
+    var url string
+
+    switch league {
+    case "NFL":
+        url = fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard")
+    case "College":
+        url = fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard")
+    }
+
+
+    resp, err := http.Get(url)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    
+    defer resp.Body.Close()
+
+    var data NFLSchedule
+
+    err = json.NewDecoder(resp.Body).Decode(&data)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+    
+    //jsonData, _ := json.MarshalIndent(data, "", "  ")
+    //fmt.Println(string(jsonData))
+
+    fmt.Printf("\n%s Schedule:",league)
+    fmt.Println()
+    fmt.Println()
+
+    for i, event := range data.Events {
+        //fmt.Printf("%+v\n", event)
+        fmt.Printf("%d. \n", i+1)
+        fmt.Printf("%s\n", event.Name)
+        fmt.Printf("%s\n", event.Status.Type.Detail)
+        if event.Status.Type.State != "post" {
+            fmt.Printf("%s\n", strings.Join(event.Competitions[0].Broadcasts[0].Names, ", "))
+        }
+        fmt.Println()
+        if event.Status.Type.State != "pre" && event.Status.Type.State != "post" {
+            fmt.Printf("%s period %s\n", event.Status.DisplayClock, event.Status.Period)
+        }
+        if event.Status.Type.State != "pre" {
+            fmt.Printf("%s %s\n", event.Competitions[0].Competitors[0].Team.Name, event.Competitions[0].Competitors[0].Score)
+            fmt.Printf("%s %s\n", event.Competitions[0].Competitors[1].Team.Name, event.Competitions[0].Competitors[1].Score)
+        }
+        
+        if event.Status.Type.State == "post" {
+            println()
+            for _, headline := range event.Competitions[0].Headlines {
+                fmt.Println(headline.ShortLinkText)
+                fmt.Println(headline.Video[0].Links.Web.Href)
+                break
+              }
+
+            fmt.Println()
+        }
+
+        fmt.Println() 
+    }
+
+    fmt.Println()
+
+    for {
+
+        var choice string
+        fmt.Print("Enter the number of the event: ('q' to quit) ")
+        fmt.Scanln(&choice)
+
+        if choice == "q" {
+            break
+        } else {
+            choiceInt, _ := strconv.Atoi(choice)
+            chosenEvent := data.Events[choiceInt-1]
+            if err != nil {
+                fmt.Println("Invalid input")
+                continue
+            }
+
+            fmt.Println()
+
+            fmt.Println(chosenEvent.Links[0].Text + ": ", chosenEvent.Links[0].Href)
+
+            if chosenEvent.Status.Type.State == "post" {
+                fmt.Println()
+                fmt.Println("Expected " + chosenEvent.Weather.Link.Text + ": ", chosenEvent.Weather.DisplayValue, strconv.Itoa(chosenEvent.Weather.Temperature) + "°F")
+            }
+
+            fmt.Println()
+
+            fmt.Println("More info: " + chosenEvent.Weather.Link.Href)
+
+            fmt.Println()
+
+            fmt.Println(chosenEvent.Competitions[0].Competitors[0].Team.DisplayName)
+            fmt.Println()
+            for _, link := range chosenEvent.Competitions[0].Competitors[0].Team.Links {
+                fmt.Println(link.Text + ": ", link.Href)
+            }
+
+            fmt.Println()
+
+            fmt.Println(chosenEvent.Competitions[0].Competitors[1].Team.DisplayName)
+            fmt.Println()
+            for _, link := range chosenEvent.Competitions[0].Competitors[1].Team.Links {
+                fmt.Println(link.Text + ": ", link.Href)
+            }
+
+            fmt.Println()
+        }
+
+    }
+
+}
+
+func getCollegeFootballSchedule() {
+
+    println("College Football Schedule - TBD")
+}
+
+func espnMenu() {
+
+    fmt.Println("\nESPN menu:")
+    fmt.Println()
+    fmt.Println("1. Next week's NFL schedule")
+    fmt.Println("2. Next week's College Football schedule")
+    fmt.Println()
+
+    var option int
+    fmt.Scanln(&option)
+
+    fmt.Println() 
+
+    switch option {
+    case 1:
+        getFootballSchedule("NFL")
+    case 2:
+        getFootballSchedule("College")
+    }
+
+}
+
+
 // main is the entry point of the polyapi CLI tool.
 //
 //
@@ -1566,7 +1789,8 @@ func main() {
         fmt.Println("3. Get treasury data")
         fmt.Println("4. Get bls economic data like unemployment, ppi, cpi")
         fmt.Println("5. Get federal reserve data like federal funds rate")
-		fmt.Println("6. Exit")
+        fmt.Println("6. Get ESPN sports data")
+		fmt.Println("7. Exit")
         fmt.Println()
 
 		var option string
@@ -1585,7 +1809,9 @@ func main() {
             getBLSData()
         case "5":
             getFRED()
-		case "6":
+        case "6":
+            espnMenu()
+		case "7":
             defer db.Close()
 			fmt.Println("\nExiting...")
 			return

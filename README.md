@@ -15,6 +15,7 @@ This is a new project and actively under development.
 1. Retrieves latest average US Treasury bond, note and bill rates and app calculates spreads. 
 1. Retrieves latest PPI and CPI from U.S. Bureau of Labor Statistics
 1. Retrieves additional economic data like GDP and unemployment rate from U.S. Federal Reserve
+1. Show weekly schedules for NFL and College football, and scores if game underday and links to roster, stats
 
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
@@ -28,6 +29,10 @@ At program start, a db directory and `polyapi.db` are created. `db/polyapi.db` i
 I'm using a dev container so I don't have to install Go on my Mac. All I need a is a Docker daemon, which in my case is `colima` and VS Code with the dev container extension.
 
 ## API providers
+
+### ESPN football games this week
+
+ESPN has NFL and College Football endpoints. If the game is in progress or over, the app presents score, a headline and a video replay link. If a game (event) is selected, additional links are shown for game, roster, stats
 
 ### Weather for Addresses (USGOV)
 
