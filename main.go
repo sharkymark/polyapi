@@ -10,10 +10,10 @@ import (
     "os"
     "strconv"
     "log"
-    "time"
     "io"
     "database/sql"
     "sort"
+    "time"
     "bytes"
     "sync"
 	_ "github.com/mattn/go-sqlite3"
@@ -1493,6 +1493,10 @@ func getBLSData() {
 
 func fetchSeriesData(seriesID, startYear, endYear string) {
 
+
+    fmt.Println("startYear: ", startYear)
+    fmt.Println("endYear: ", endYear)
+
     apiKey := os.Getenv("FRED_API_KEY")
     if apiKey == "" {
         fmt.Println("FRED_API_KEY environment variable is not set.")
@@ -1535,32 +1539,58 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 
     println()
 
+    fmt.Printf("**")
 	switch seriesID {
 	case "FEDFUNDS":
-		fmt.Printf("Federal Funds Rate: ")
+		fmt.Printf("Federal Funds Rate")
 	case "ICSA":
-		fmt.Printf("Initial Claims for Unemployment Insurance: ")
+		fmt.Printf("Initial Claims for Unemployment Insurance")
 	case "RSAFS":
-		fmt.Printf("Retail Sales: ")
+		fmt.Printf("Retail Sales")
     case "UNRATE":
-        fmt.Printf("Unemployment Rate: ")
+        fmt.Printf("Unemployment Rate")
     case "GDP":
-        fmt.Printf("Gross Domestic Product: ")
+        fmt.Printf("Gross Domestic Product")
     case "DGORDER":
-        fmt.Printf("Durable Goods Orders: ")
+        fmt.Printf("Durable Goods Orders")
     case "INDPRO":
-        fmt.Printf("Industrial Production: ")
+        fmt.Printf("Industrial Production")
     case "PCE":
-        fmt.Printf("Personal Consumption Expenditures: ")
+        fmt.Printf("Personal Consumption Expenditures")
 	default:
-		fmt.Printf("Series ID: ")
+		fmt.Printf("Unknown Series ID")
 	}
 
-
+    fmt.Printf("**")
+	fmt.Printf("\nFRED Series ID: %s and %d observations", seriesID, len(data.Observations))
+    fmt.Println()
 
 	if len(data.Observations) > 0 {
 		latest := data.Observations[0] // The first element is the latest due to descending sort
 		fmt.Printf("%s on %s\n", latest.Value, latest.Date)
+
+        // GDP data is quarterly, so calculate quarter-over-quarter change
+        if seriesID == "GDP" {
+            if len(data.Observations) == 4 {
+                // previous quarter calculation
+                previousQuarter := data.Observations[1] 
+                latestValue, _ := strconv.ParseFloat(latest.Value, 64)
+                previousValue, _ := strconv.ParseFloat(previousQuarter.Value, 64)
+                quarterChange := latestValue - previousValue
+                quarterPercentageChange := (quarterChange / previousValue) * 100
+                fmt.Printf("Change from previous quarter: %.2f (%.2f%%) | Value: %s\n", quarterChange, quarterPercentageChange, previousQuarter.Value)
+
+                // previous year calculation
+                previousYear := data.Observations[3]
+                previousYearValue, _ := strconv.ParseFloat(previousYear.Value, 64)
+                yearChange := latestValue - previousYearValue
+                yearPercentageChange := (yearChange / previousYearValue) * 100
+                fmt.Printf("Change from previous year: %.2f (%.2f%%) | Value: %s\n", yearChange, yearPercentageChange, previousYear.Value)
+            } else {
+                fmt.Println("Not enough data to calculate quarter-over-quarter and annual change")
+            }
+            return
+        }
 
 		// Ensure there are at least 2 observations to calculate month-over-month change
 		if len(data.Observations) > 1 {
@@ -1569,19 +1599,20 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 			previousValue, _ := strconv.ParseFloat(previous.Value, 64)
 			change := latestValue - previousValue
 			percentageChange := (change / previousValue) * 100
-			fmt.Printf("Change from previous month: %.2f (%.2f%%)\n", change, percentageChange)
+			fmt.Printf("Change from previous month (%s): %.2f (%.2f%%) | Value: %s\n", previous.Date, change, percentageChange, previous.Value)
 		} else {
 			fmt.Println("Not enough data to calculate month-over-month change")
 		}
 
 		// Calculate 12-month change if there's enough data
-		if len(data.Observations) >= 13 {
-			yearAgo := data.Observations[12] // 12th element is data from 12 months ago
+		if len(data.Observations) >= 12 {
+			yearAgo := data.Observations[11] // 12th element is data from 12 months ago
+            //yearAgo := data.Observations[len(data.Observations)-1] // 12th element is data from 12 months ago
 			latestValue, _ := strconv.ParseFloat(latest.Value, 64)
 			yearAgoValue, _ := strconv.ParseFloat(yearAgo.Value, 64)
 			yearChange := latestValue - yearAgoValue
 			yearPercentageChange := (yearChange / yearAgoValue) * 100
-			fmt.Printf("Change from 12 months ago: %.2f (%.2f%%)\n", yearChange, yearPercentageChange)
+			fmt.Printf("Change from 12 months ago: (%s) %.2f (%.2f%%) | Value: %s\n", startYear, yearChange, yearPercentageChange, yearAgo.Value)
 		} else {
 			fmt.Println("Not enough data to calculate 12-month change")
 		}
@@ -1591,18 +1622,28 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 		fmt.Println("No data available in the specified date range")
 	}
 
-	fmt.Printf("FRED Series ID: %s\n", seriesID)
-
     println()
 
 }
 
+func getFirstDayOfMonth(date time.Time) time.Time {
+    // Construct a new date with the same year and month, but with the day set to 1
+    firstDayOfMonth := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+    return firstDayOfMonth
+}
+
 func getFRED() {
 
-    seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "DGORDER", "INDPRO", "PCE"}
-	now := time.Now()
-	currentMonth := now.Format("2006-01-01")
-	oneYearAgo := now.AddDate(-1, 0, 0).Format("2006-01-01")
+
+    currentDate := time.Now()
+    firstDayOfMonth := getFirstDayOfMonth(currentDate)
+    oneYearBeforeFirstDayOfMonth := firstDayOfMonth.AddDate(-1, 0, 0)
+
+    // Convert the dates to strings
+    firstDayOfMonthStr := firstDayOfMonth.Format("2006-01-02")
+    oneYearBeforeFirstDayOfMonthStr := oneYearBeforeFirstDayOfMonth.Format("2006-01-02")
+
+    seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE"}
 
     var wg sync.WaitGroup
     wg.Add(len(seriesIDs))
@@ -1611,7 +1652,7 @@ func getFRED() {
 	for _, seriesID := range seriesIDs {
         go func(id string) {
             defer wg.Done()
-		    fetchSeriesData(id, oneYearAgo, currentMonth)
+		    fetchSeriesData(id, oneYearBeforeFirstDayOfMonthStr, firstDayOfMonthStr)
         }(seriesID)
 	}
 
