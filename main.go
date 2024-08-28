@@ -1494,9 +1494,6 @@ func getBLSData() {
 func fetchSeriesData(seriesID, startYear, endYear string) {
 
 
-    fmt.Println("startYear: ", startYear)
-    fmt.Println("endYear: ", endYear)
-
     apiKey := os.Getenv("FRED_API_KEY")
     if apiKey == "" {
         fmt.Println("FRED_API_KEY environment variable is not set.")
