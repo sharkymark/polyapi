@@ -1089,6 +1089,7 @@ func getStockOverview(db *sql.DB, tickerSymbol interface{}, lastPrice interface{
     fmt.Printf("   Beta: %s\n", data["Beta"])
     fmt.Printf("   Forward PE: %s\n", data["ForwardPE"])
     fmt.Printf("   Trailing PE: %s\n", data["TrailingPE"])
+    fmt.Println()
 }
 
 
@@ -1696,12 +1697,19 @@ func getFootballSchedule(league string) {
         if choice == "q" {
             break
         } else {
-            choiceInt, _ := strconv.Atoi(choice)
-            chosenEvent := data.Events[choiceInt-1]
+            choiceInt, err := strconv.Atoi(choice)
+            
             if err != nil {
-                fmt.Println("Invalid input")
+                fmt.Println("Invalid input. Please enter a number.")
                 continue
             }
+
+            if choiceInt < 1 || choiceInt > len(data.Events) {
+                fmt.Println("Invalid input. Event number out of range.")
+                continue
+            }
+
+            chosenEvent := data.Events[choiceInt-1]
 
             fmt.Println()
 
