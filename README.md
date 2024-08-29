@@ -62,6 +62,33 @@ The U.S. Federal Reserve has a [public API called FRED](https://www.bls.gov/deve
 export FRED_API_KEY=""
 ```
 
+### Query contacts (Salesforce.com)
+
+#### Currently implemented functionality
+1. Reads environment variables required (Consumer Key, Consumer Secret, Salesforce Url)
+1. Retrieves an OAuth Access Token from Salesforce 
+1. Lets users search for Contacts (by contact first & last name, account name, email address) and prints results
+1. Retry logic to get a new OAuth Access Token if a Salesforce call fails e.g., token has expired
+
+Register for [a complimentary developer account](https://developer.salesforce.com/signup) to use with Salesforce API testing
+
+#### Authentication
+
+Instance URL, Consumer Key and Consumer Secret are read as environment variables which you place in `.zshrc` or `.bashrc`
+
+```sh
+# set SalesForce environment variables
+export SALESFORCE_CONSUMER_KEY_1=""
+export SALESFORCE_CONSUMER_SECRET_1=""
+export SALESFORCE_URL_1=""
+```
+
+Retrieve the Url from the Salesforce UI, View Profile and the Url is under your profile user name.
+ 
+Retrieve the Consumer Key and Consumer Secret from the Salesforce UI, View Setup, App Manager, Connected Apps.
+
+The app authenticates uses these environment variables and generates an OAuth Access Token that is used for SOQL Salesforce calls.
+
 ## Creating a binary
 
 `.gitignore` is set to ignore `main` and `polyapi` binaries to reduce repository size. `git build .` uses the OS and architecture of the development machine. To create other binaries, use examples like:
