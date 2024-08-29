@@ -15,6 +15,7 @@ This is a new project and actively under development.
 1. Retrieves latest average US Treasury bond, note and bill rates and app calculates spreads. 
 1. Retrieves latest PPI and CPI from U.S. Bureau of Labor Statistics
 1. Retrieves additional economic data like GDP and unemployment rate from U.S. Federal Reserve
+1. Query your Salesforce.com instance for contacts
 1. Show weekly schedules for NFL and College football, and scores if game underday and links to roster, stats
 
 
