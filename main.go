@@ -15,7 +15,6 @@ import (
     "sort"
     "time"
     "bytes"
-    "sync"
 	_ "github.com/mattn/go-sqlite3"
 	
 )
@@ -1635,26 +1634,23 @@ func getFRED() {
     currentDate := time.Now()
     firstDayOfMonth := getFirstDayOfMonth(currentDate)
     oneYearBeforeFirstDayOfMonth := firstDayOfMonth.AddDate(-1, 0, 0)
+    oneYearOneMonthBeforeFirstDayOfMonth := oneYearBeforeFirstDayOfMonth.AddDate(0, -1, 0)
 
     // Convert the dates to strings
     firstDayOfMonthStr := firstDayOfMonth.Format("2006-01-02")
     oneYearBeforeFirstDayOfMonthStr := oneYearBeforeFirstDayOfMonth.Format("2006-01-02")
+    oneYearOneMonthBeforeFirstDayOfMonthStr := oneYearOneMonthBeforeFirstDayOfMonth.Format("2006-01-02")
 
     seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE"}
 
-    var wg sync.WaitGroup
-    wg.Add(len(seriesIDs))
-
     // Fetch data concurrently
-	for _, seriesID := range seriesIDs {
-        go func(id string) {
-            defer wg.Done()
-		    fetchSeriesData(id, oneYearBeforeFirstDayOfMonthStr, firstDayOfMonthStr)
-        }(seriesID)
-	}
-
-    wg.Wait() // Wait for all goroutines to finish
-
+    for _, id := range seriesIDs {
+        if id == "PCE" {
+            fetchSeriesData(id, oneYearOneMonthBeforeFirstDayOfMonthStr, firstDayOfMonthStr)
+        } else {
+            fetchSeriesData(id, oneYearBeforeFirstDayOfMonthStr, firstDayOfMonthStr)
+        }
+    }
 }
 
 func getFootballSchedule(league string) {
