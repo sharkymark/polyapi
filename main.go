@@ -15,6 +15,7 @@ import (
     "sort"
     "time"
     "bytes"
+    "net/url"
 	_ "github.com/mattn/go-sqlite3"
 	
 )
@@ -255,6 +256,41 @@ type Ticker struct {
     UpdatedAt   string
     Id          int
 }
+
+const salesforceAPIBaseURL = "/services/data/v54.0"
+
+type Salesforce struct {
+	Url string
+	ConsumerKey string
+	ConsumerSecret string
+	AccessToken string
+}
+
+// Define a generic interface to handle different Salesforce objects
+type SalesforceObject interface{}
+
+// Define a Contact struct
+type Contact struct {
+    Id        	string `json:"Id"`
+    FirstName 	string `json:"FirstName"`
+    LastName  	string `json:"LastName"`
+	Account 	Account `json:"Account"`
+    Email     	string `json:"Email"`
+    Phone     	string `json:"Phone"`
+	Description string `json:"Description"`
+}
+
+// Define an Account struct
+type Account struct {
+    Id          string `json:"Id"`
+    Name        string `json:"Name"`
+    Type        string `json:"Type"`
+    Description string `json:"Description"`
+    Website     string `json:"Website"`
+    Industry    string `json:"Industry"`
+}
+
+
 
 // deleteAddress deletes an address from the database.
 func deleteAddress(db *sql.DB, id int) {
@@ -1816,6 +1852,318 @@ func espnMenu() {
 
 }
 
+func setVars(deployment *Salesforce, requiredVars []string) {
+    missingVars := []string{}
+
+    for _, varName := range requiredVars {
+        value := os.Getenv(varName)
+        if value == "" {
+            missingVars = append(missingVars, varName)
+        } else {
+            switch varName {
+            case requiredVars[0]:
+                deployment.Url = value
+            case requiredVars[1]:
+                deployment.ConsumerKey = value
+            case requiredVars[2]:
+                deployment.ConsumerSecret = value
+            }
+        }
+    }
+
+    // If it's not optional and variables are missing, print an error and exit
+    if len(missingVars) > 0 {
+        fmt.Println("\nError: Missing required environment variables for deployment:\n")
+        for _, varName := range missingVars {
+            fmt.Printf("  - %s\n", varName)
+        }
+        os.Exit(1)
+    }
+}
+
+// isValidDeployment checks if the given Salesforce deployment has valid credentials
+func isValidDeployment(s *Salesforce) bool {
+    return s.Url != "" && s.ConsumerKey != "" && s.ConsumerSecret != ""
+}
+
+func getEnvVars(d1 *Salesforce) Salesforce {
+
+	requiredVars1 := []string{"SALESFORCE_URL_1", "SALESFORCE_CONSUMER_KEY_1", "SALESFORCE_CONSUMER_SECRET_1"}
+
+    // Set the first deployment (required)
+    setVars(d1, requiredVars1)
+
+    // Check if credentials are valid and take the first valid deployment
+    if isValidDeployment(d1) {
+        return *d1
+    }
+
+     // If deployment is invalid, return an error
+     fmt.Println("Error: Missing required environment variables for both deployments.")
+     os.Exit(1)
+
+     return Salesforce{}
+
+}
+
+func getAccessToken(s *Salesforce) (string, error) {
+
+    form := url.Values{}
+    form.Add("grant_type", "client_credentials")
+    form.Add("client_id", s.ConsumerKey)
+    form.Add("client_secret", s.ConsumerSecret)
+
+    // 1. Print request details for debugging
+    //fmt.Printf("Sending POST request to: %s\n", s.Url)
+    //fmt.Printf("Form data: %v\n", form)
+
+    req, err := http.NewRequest("POST", s.Url+"/services/oauth2/token", strings.NewReader(form.Encode()))
+    if err != nil {
+        return "", fmt.Errorf("error creating request: %w", err)
+    }
+
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", fmt.Errorf("error making request: %w", err)
+    }
+    defer resp.Body.Close()
+
+
+    // 2. Check for successful response status code
+    if resp.StatusCode != http.StatusOK {
+        defer resp.Body.Close() // Close body even on errors
+        body, _ := ioutil.ReadAll(resp.Body)
+        return "", fmt.Errorf("unexpected status code: %d, response body: %s", resp.StatusCode, string(body))
+    }
+
+    // 3. Print response details for debugging
+    // fmt.Printf("Received response with status code: %d\n", resp.StatusCode)
+
+
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return "", fmt.Errorf("error reading response body: %w", err)
+    }
+    // fmt.Println("Received response body:")
+    // fmt.Println(string(body))
+
+    var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+    if err != nil {
+        return "", fmt.Errorf("error parsing JSON response: %w, response body: %s", err, string(body))
+    }
+
+    accessToken, ok := result["access_token"].(string)
+    if !ok {
+        return "", fmt.Errorf("couldn't parse access token, response body: %s", string(body))
+    }
+
+	s.AccessToken = accessToken
+
+    return accessToken, nil
+
+}
+
+// querySalesforce executes SOQL queries
+// 
+// Requires:
+//		- Salesforce struct with access token
+//		- A string with the SOQL query
+//		- A destination interface to store the query results
+//
+func querySalesforce(s *Salesforce, soql string, dest interface{}) error {
+    // Create the HTTP request
+    req, err := http.NewRequest("GET", s.Url+salesforceAPIBaseURL+"/query?q="+url.QueryEscape(soql), nil)
+    if err != nil {
+        return fmt.Errorf("error creating request: %w", err)
+    }
+
+    req.Header.Set("Authorization", "Bearer "+s.AccessToken)
+
+    // Make the API call
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return fmt.Errorf("error making request: %w", err)
+    }
+    defer resp.Body.Close()
+
+    // Check for successful response
+    if resp.StatusCode == http.StatusUnauthorized {
+        // 401 Unauthorized indicates session expired, try to refresh the token
+        fmt.Println("Session expired, refreshing token...\n")
+
+        // Get a new access token
+        _, err := getAccessToken(s)
+        if err != nil {
+            return fmt.Errorf("error refreshing access token: %w", err)
+        }
+
+        // Retry the request with the new token
+        req.Header.Set("Authorization", "Bearer "+s.AccessToken)
+        resp, err = client.Do(req)
+        if err != nil {
+            return fmt.Errorf("error making request after token refresh: %w", err)
+        }
+        defer resp.Body.Close()
+
+        // Check the response again after retrying
+        if resp.StatusCode != http.StatusOK {
+            body, _ := ioutil.ReadAll(resp.Body)
+            return fmt.Errorf("unexpected status code after token refresh: %d, response body: %s", resp.StatusCode, string(body))
+        }
+    } else if resp.StatusCode != http.StatusOK {
+        body, _ := ioutil.ReadAll(resp.Body)
+        return fmt.Errorf("unexpected status code: %d, response body: %s", resp.StatusCode, string(body))
+    }
+
+    // Parse the JSON response into the provided destination
+
+    /* for debugging json payload 
+    // Step 1: Read the entire response body
+    responseBody, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return fmt.Errorf("error reading response body: %w", err)
+    }
+
+    // Step 2: Print the raw JSON response
+    fmt.Println("Raw JSON response:", string(responseBody))
+    */
+
+    err = json.NewDecoder(resp.Body).Decode(dest)
+    if err != nil {
+        return fmt.Errorf("error parsing JSON response: %w", err)
+    }
+
+    return nil
+}
+
+func getContacts(salesforce *Salesforce, contactFilter string) ([]Contact, error) {
+    soql := fmt.Sprintf("SELECT Id, FirstName, LastName, Email, Account.Name, Phone, Description FROM Contact "+
+	"WHERE LastName LIKE '%%%s%%' OR FirstName LIKE '%%%s%%'"+
+	"OR Account.Name LIKE '%%%s%%' OR Email LIKE '%%%s%%' ORDER BY LastName",
+	contactFilter,contactFilter,contactFilter,contactFilter)
+    var contactsResponse struct {
+        Records []Contact `json:"records"`
+    }
+    err := querySalesforce(salesforce, soql, &contactsResponse)
+    return contactsResponse.Records, err
+}
+
+// FormatCreatedAt takes a date string and returns it formatted as "YYYY-MM-DD HH:MM AM/PM".
+func FormatCreatedAt(dateStr string) (string, error) {
+    // Parse the input date string (adjust the layout according to your input format)
+    createdAt, err := time.Parse("2006-01-02T15:04:05.000-0700", dateStr) // Adjust as necessary
+    if err != nil {
+        return "", fmt.Errorf("error parsing date: %w", err)
+    }
+
+    // Format the date to the desired output
+    formattedDate := createdAt.Format("2006-01-02 03:04 PM")
+    return formattedDate, nil
+}
+
+func printContacts(contacts []Contact) {
+
+    if len(contacts) == 0 {
+        fmt.Println("\nNo contacts found.")
+        return
+    }
+
+    for _, contact := range contacts {
+        fmt.Printf("\nContact Name: %s, %s\nAccount: %s\nEmail: %s\nPhone: %s\nDescription:\n\n%s\n\n", contact.LastName, contact.FirstName, contact.Account.Name, contact.Email, contact.Phone, contact.Description)
+    }
+}
+
+func printObjectCounts(salesforce *Salesforce) {
+    // Define a list of SOQL queries for counting different objects
+    queries := map[string]string{
+        "accounts":      "SELECT COUNT() FROM Account",
+        "contacts":      "SELECT COUNT() FROM Contact",
+        "opportunities": "SELECT COUNT() FROM Opportunity",
+        "tasks":         "SELECT COUNT() FROM Task",
+    }
+
+    // Iterate through the queries and print counts
+    fmt.Println("\nDeployment counts:\n")
+    for object, query := range queries {
+        var countResponse struct {
+            TotalSize int `json:"totalSize"`
+        }
+        
+        // Execute the query and handle errors
+        err := querySalesforce(salesforce, query, &countResponse)
+        if err != nil {
+            fmt.Printf("Error retrieving count for %s: %s\n", object, err)
+            continue // Skip to the next object on error
+        }
+
+        // Print the count for the object
+        fmt.Printf("  %s: %d\n", object, countResponse.TotalSize)
+    }
+}
+
+func printSalesforceCreds(s *Salesforce) {
+
+    fmt.Println()
+	fmt.Println("Salesforce URL:", s.Url)
+	fmt.Println("Salesforce Consumer Key:", s.ConsumerKey)
+	fmt.Println("Salesforce Consumer Secret:", s.ConsumerSecret)
+	fmt.Println("Generated Salesforce Access Token:", s.AccessToken)
+    fmt.Println()
+
+}
+
+func getSalesforce() {
+
+    // Define pointers to Salesforce structs for each deployment and current deployment
+    var deployment1, currentDeployment Salesforce
+
+    // Get and print environment variables with Salesforce credentials
+    currentDeployment = getEnvVars(&deployment1)
+
+    // Get access token
+    _, err := getAccessToken(&currentDeployment)
+    if err != nil {
+        fmt.Println("Error getting access token:", err)
+        return
+    }
+
+    printSalesforceCreds(&currentDeployment)
+    
+    printObjectCounts(&currentDeployment)
+
+    // Check if deployment are valid
+    if isValidDeployment(&deployment1) {
+        print("\nYou have a valid Salesforce deployment:\n")
+        print("\n  ", deployment1.Url)
+        print("\n")
+    }
+
+    for {
+        var contactFilter string
+        fmt.Print("\nEnter contact first, last name, email or account name filter (or 'q' to quit): ")
+        fmt.Scanln(&contactFilter)
+
+        if contactFilter == "q" {
+            break
+        }
+
+        contacts, err := getContacts(&currentDeployment, contactFilter)
+        if err != nil {
+            fmt.Println("Error retrieving contacts:", err)
+            continue
+        }
+
+        printContacts(contacts)
+    }
+
+
+}
 
 // main is the entry point of the polyapi CLI tool.
 //
@@ -1825,13 +2173,12 @@ func main() {
 
     db := createDB()
 
-    fmt.Println()
-	fmt.Println("polyAPI CLI")
-	fmt.Println("-----------")
-    fmt.Println()
-
 	// Main menu
 	for {
+        fmt.Println()
+        fmt.Println("polyAPI CLI")
+        fmt.Println("-----------")
+        fmt.Println()
 		fmt.Println("Main Menu:")
         fmt.Println()
 		fmt.Println("1. Get weather for an address")
@@ -1840,7 +2187,8 @@ func main() {
         fmt.Println("4. Get bls economic data like unemployment, ppi, cpi")
         fmt.Println("5. Get federal reserve data like federal funds rate")
         fmt.Println("6. Get ESPN sports data")
-		fmt.Println("7. Exit")
+        fmt.Println("7. Query Salesforce data")
+		fmt.Println("8. Exit")
         fmt.Println()
 
 		var option string
@@ -1861,7 +2209,9 @@ func main() {
             getFRED()
         case "6":
             espnMenu()
-		case "7":
+        case "7":
+            getSalesforce()
+		case "8":
             defer db.Close()
 			fmt.Println("\nExiting...")
 			return
