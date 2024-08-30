@@ -1595,6 +1595,7 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 
     fmt.Printf("**")
 	fmt.Printf("\nFRED Series ID: %s and %d observations", seriesID, len(data.Observations))
+    fmt.Printf("\nCharts and more info: https://fred.stlouisfed.org/series/%s", seriesID)
     fmt.Println()
 
 	if len(data.Observations) > 0 {
