@@ -1698,7 +1698,7 @@ func getFootballSchedule(league string) {
     case "NFL":
         url = fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard")
     case "College":
-        url = fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard")
+        url = fmt.Sprintf("https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80")
     }
 
 
@@ -1749,13 +1749,15 @@ func getFootballSchedule(league string) {
             println()
             for _, headline := range event.Competitions[0].Headlines {
                 fmt.Println(headline.ShortLinkText)
-                fmt.Println(headline.Video[0].Links.Web.Href)
+                if len(headline.Video) > 0 {
+                    fmt.Println(headline.Video[0].Links.Web.Href)
+                } 
                 break
-              }
 
             fmt.Println()
         }
 
+        }
         fmt.Println() 
     }
 
