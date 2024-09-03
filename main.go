@@ -720,7 +720,6 @@ func printObservation(observation Properties) {
 // it is called from geocode function.
 
 func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
-    reader := bufio.NewReader(os.Stdin)
     
     // Fetch nearest stations
     stations, err := getNearestStations(lat, lon)
@@ -786,6 +785,7 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
         fmt.Println("4. Main Menu")
         fmt.Println()
         
+        reader := bufio.NewReader(os.Stdin)
         var option string
         fmt.Print("Enter your option: ")
         option, _ = reader.ReadString('\n')
@@ -805,7 +805,6 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
         case "3":
             geocodeMenu(db)
         case "4":
-            reader.Reset(os.Stdin)
             return
         default:
             fmt.Println("\nInvalid option")
@@ -961,48 +960,54 @@ func reuseAddress(db *sql.DB) {
         fmt.Printf("%d. %s ~ %s\n", i+1, address.MatchedAddress, extraInfo)
     }
 
-    fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
-    var choice int
-    _, err = fmt.Scan(&choice)
-    if err != nil {
-        fmt.Println("Invalid input")
-        return
+    var choiceInt int
+    for {
+        fmt.Printf("\nEnter the row number (%d-%d): ", 1, len(addresses))
+        var choice string
+        fmt.Scanln(&choice)
+        var err error
+        choiceInt, err = strconv.Atoi(choice)
+        if err != nil || choiceInt < 1 || choiceInt > len(addresses) {
+            fmt.Println("Invalid input. Please try again.")
+        } else {
+            break
+        }
     }
 
-    // Validate user input
-    if choice < 1 || choice > len(addresses) {
-        fmt.Println("Invalid choice")
-        return
-    }
-
-    fmt.Println("\n1. Reuse")
-    fmt.Println("2. Delete")
-    fmt.Println("3. Return to previous menu")
-    fmt.Println()
-    fmt.Print("Enter your choice: ")
-    var action int
-    _, err = fmt.Scan(&action)
-    if err != nil {
-        fmt.Println("Invalid input")
-        return
+    var action string
+    for {
+        fmt.Println("\n1. Reuse")
+        fmt.Println("2. Delete")
+        fmt.Println("3. Return to previous menu")
+        fmt.Println()
+        fmt.Print("Enter your choice: ")
+        fmt.Scanln(&action)
+        if action != "1" && action != "2" && action != "3" {
+            fmt.Println("Invalid choice. Please try again.")
+        } else {
+            break
+        }
     }
 
     switch action {
-    case 1:
+    case "1":
         // Reuse logic using addresses[choice-1]
-        chosenAddress := addresses[choice-1]
+        chosenAddress := addresses[choiceInt-1]
         lat := chosenAddress.Latitude
         lon := chosenAddress.Longitude
         getNOAAWeather(fmt.Sprintf("%.8f", lat), fmt.Sprintf("%.8f", lon), db, chosenAddress.Id)
-    case 2:
+    case "2":
         // Delete the selected address
-        deleteAddress(db, addresses[choice-1].Id)
-    case 3:
+        deleteAddress(db, addresses[choiceInt-1].Id)
+    case "3":
         // Return to previous menu
+        fmt.Scanln()
         return
     default:
         fmt.Println("Invalid choice")
     }
+
+    fmt.Print("\n")
 
 }
 
