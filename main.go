@@ -776,40 +776,39 @@ func getNOAAWeather(lat, lon string, db *sql.DB, addressId int) {
     fmt.Printf("%s\n", googleMapsURL)
 
     // Submenu
-    for {
-        fmt.Println("\nNOAA Weather Submenu:")
-        fmt.Println()
-        fmt.Println("1. Forecast")
-        fmt.Println("2. Hourly Forecast")
-        fmt.Println("3. Choose another address")
-        fmt.Println("4. Main Menu")
-        fmt.Println()
+    fmt.Println("\nNOAA Weather Submenu:")
+    fmt.Println()
+    fmt.Println("1. Forecast")
+    fmt.Println("2. Hourly Forecast")
+    fmt.Println("3. Choose another address")
+    fmt.Println("4. Main Menu")
+    fmt.Println()
+    
+    reader := bufio.NewReader(os.Stdin)
+    var option string
+    fmt.Print("Enter your option: ")
+    option, _ = reader.ReadString('\n')
+    option = strings.TrimSpace(option)
+    fmt.Println()
+
+    switch option {
+    case "1":
         
-        reader := bufio.NewReader(os.Stdin)
-        var option string
-        fmt.Print("Enter your option: ")
-        option, _ = reader.ReadString('\n')
-        option = strings.TrimSpace(option)
-        fmt.Println()
+        printForecast(noaaResponse)
 
-        switch option {
-        case "1":
-            
-            printForecast(noaaResponse)
+    case "2":
 
-        case "2":
+        printHourlyForecast(noaaResponse)
 
-            printHourlyForecast(noaaResponse)
-
-            //fmt.Println(string(body))
-        case "3":
-            geocodeMenu(db)
-        case "4":
-            return
-        default:
-            fmt.Println("\nInvalid option")
-        }
+        //fmt.Println(string(body))
+    case "3":
+        geocodeMenu(db)
+    case "4":
+        return
+    default:
+        fmt.Println("\nInvalid option")
     }
+
 }
 
 // getGeoCode sends a request to the Census Geocoding API to get the coordinates of an address.
@@ -1001,7 +1000,6 @@ func reuseAddress(db *sql.DB) {
         deleteAddress(db, addresses[choiceInt-1].Id)
     case "3":
         // Return to previous menu
-        fmt.Scanln()
         return
     default:
         fmt.Println("Invalid choice")
@@ -1020,8 +1018,6 @@ func geocodeMenu(db *sql.DB) {
 
     var option int
     fmt.Scanln(&option)
-
-    fmt.Println() 
 
     switch option {
     case 1:
@@ -1322,8 +1318,6 @@ func tickerMenu(db *sql.DB) {
 
     var option int
     fmt.Scanln(&option)
-
-    fmt.Println()
 
     switch option {
     case 1:
@@ -1850,8 +1844,6 @@ func espnMenu() {
 
     var option int
     fmt.Scanln(&option)
-
-    fmt.Println() 
 
     switch option {
     case 1:
