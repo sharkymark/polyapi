@@ -1731,7 +1731,9 @@ func getFootballSchedule(league string) {
         fmt.Printf("%s\n", event.Name)
         fmt.Printf("%s\n", event.Status.Type.Detail)
         if event.Status.Type.State != "post" {
-            fmt.Printf("%s\n", strings.Join(event.Competitions[0].Broadcasts[0].Names, ", "))
+            for _, broadcast := range event.Competitions[0].Broadcasts {
+                fmt.Printf("%s\n", strings.Join(broadcast.Names, ", "))
+            }
         }
         fmt.Println()
         /* commented out - returned in date field after game starts
