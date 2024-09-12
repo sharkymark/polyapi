@@ -90,6 +90,10 @@ Retrieve the Consumer Key and Consumer Secret from the Salesforce UI, View Setup
 
 The app authenticates uses these environment variables and generates an OAuth Access Token that is used for SOQL Salesforce calls.
 
+### ESPN sports scores and schedules
+
+Retrieves shedules, game day details, and live scores of NFL and College football games
+
 ## Creating a binary
 
 `.gitignore` is set to ignore `main` and `polyapi` binaries to reduce repository size. `git build .` uses the OS and architecture of the development machine. To create other binaries, use examples like:
