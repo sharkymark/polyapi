@@ -8,7 +8,7 @@ This is a new project and actively under development.
 
 ## Currently implemented functionality
 1. Reads environment variables like API keys
-1. Shows weather forceast and observations from the nearest weather stations by geocoding an address entered
+1. Shows weather forecasts and observations from the nearest weather stations by geocoding an address entered
 1. Shows stock ticker data
 1. Stores validated addresses and ticker symbols in a local SQLite3 database for re-use or deletion
 1. Also stores the last temperature and last ticker price on each API call with an `updated_at` timestamp
