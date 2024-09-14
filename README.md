@@ -16,7 +16,7 @@ This is a new project and actively under development.
 1. Retrieves latest PPI and CPI from U.S. Bureau of Labor Statistics
 1. Retrieves additional economic data like GDP and unemployment rate from U.S. Federal Reserve
 1. Query your Salesforce.com instance for contacts
-1. Show weekly schedules for NFL and College football, and scores if game underday and links to roster, stats
+1. Show weekly schedules for NFL and College football, EPL, MLS, NHL, WNBA, NBA, mens college basketball and scores if game underday and links to roster, stats
 
 
 ![screenshot of main menu and retrieving weather](./docs/images/polyapi-address-weather.png)
@@ -92,7 +92,7 @@ The app authenticates uses these environment variables and generates an OAuth Ac
 
 ### ESPN sports scores and schedules
 
-Retrieves shedules, game day details, and live scores of NFL and College football games
+Retrieves shedules, game day details, and live scores of NFL and College football games. [Links on GitHub](https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b)
 
 ## Creating a binary
 
