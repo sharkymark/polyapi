@@ -1674,7 +1674,7 @@ func getFRED() {
 	}
 }
 
-func getFootballSchedule(league string) {
+func getSchedule(league string) {
 
 	var url string
 
@@ -1685,6 +1685,20 @@ func getFootballSchedule(league string) {
 		url = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80"
 	case "College25":
 		url = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard"
+	case "MLB":
+		url = "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard"
+	case "EPL":
+		url = "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard"
+	case "MLS":
+		url = "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard"
+	case "NHL":
+		url = "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard"
+	case "WNBA":
+		url = "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard"
+	case "NBA":
+		url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+	case "CollegeBB":
+		url = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard"
 	}
 
 	resp, err := http.Get(url)
@@ -1714,7 +1728,12 @@ func getFootballSchedule(league string) {
 		//fmt.Printf("%+v\n", event)
 		fmt.Printf("%d. \n", i+1)
 		fmt.Printf("%s\n", event.Name)
-		fmt.Printf("%s\n", event.Status.Type.Detail)
+		if league == "MLB" {
+			fmt.Printf("%s\n", event.Status.Type.ShortDetail)
+		} else {
+			fmt.Printf("%s\n", event.Status.Type.Detail)
+		}
+
 		if event.Status.Type.State != "post" {
 			for _, broadcast := range event.Competitions[0].Broadcasts {
 				fmt.Printf("%s\n", strings.Join(broadcast.Names, ", "))
@@ -1732,19 +1751,18 @@ func getFootballSchedule(league string) {
 			fmt.Printf("%s %s\n", event.Competitions[0].Competitors[1].Team.Name, event.Competitions[0].Competitors[1].Score)
 		}
 
-		if event.Status.Type.State == "post" {
-			println()
-			for _, headline := range event.Competitions[0].Headlines {
-				fmt.Println(headline.ShortLinkText)
-				if len(headline.Video) > 0 {
-					fmt.Println(headline.Video[0].Links.Web.Href)
-				}
-				fmt.Println()
-				break
-
+		//if event.Status.Type.State == "post" {
+		println()
+		for _, headline := range event.Competitions[0].Headlines {
+			fmt.Println(headline.ShortLinkText)
+			if len(headline.Video) > 0 {
+				fmt.Println(headline.Video[0].Links.Web.Href)
 			}
+			fmt.Println()
+			break
 
 		}
+
 		fmt.Println()
 	}
 
@@ -1820,9 +1838,16 @@ func espnMenu() {
 
 	fmt.Println("\nESPN menu:")
 	fmt.Println()
-	fmt.Println("1. Next week's NFL schedule")
-	fmt.Println("2. Next week's College Football schedule - All")
-	fmt.Println("3. Next week's College Football schedule - Top 25")
+	fmt.Println("1. NFL schedule")
+	fmt.Println("2. College Football schedule - All")
+	fmt.Println("3. College Football schedule - Top 25")
+	fmt.Println("4. MLB schedule")
+	fmt.Println("5. English Premier League schedule")
+	fmt.Println("6. MLS schedule")
+	fmt.Println("7. NHL schedule")
+	fmt.Println("8. WNBA schedule")
+	fmt.Println("9. NBA schedule")
+	fmt.Println("10. NCAA men's basketball schedule")
 	fmt.Println()
 
 	var option int
@@ -1830,12 +1855,26 @@ func espnMenu() {
 
 	switch option {
 	case 1:
-		getFootballSchedule("NFL")
+		getSchedule("NFL")
 	case 2:
-		getFootballSchedule("College")
+		getSchedule("College")
 	case 3:
-		getFootballSchedule("College25")
-	}
+		getSchedule("College25")
+	case 4:
+		getSchedule("MLB")
+	case 5:
+		getSchedule("EPL")
+	case 6:
+		getSchedule("MLS")
+	case 7:
+		getSchedule("NHL")
+	case 8:
+		getSchedule("WNBA")
+	case 9:
+		getSchedule("NBA")
+	case 10:
+		getSchedule("CollegeBB")
+}
 
 }
 
