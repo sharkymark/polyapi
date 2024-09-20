@@ -1580,7 +1580,7 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 	case "TB3MS":
 		fmt.Printf("3-Month Treasury Bill")
 	case "DTB6":
-		fmt.Printf("3-Month Treasury Bill")
+		fmt.Printf("6-Month Treasury Bill")
 	case "DTB4WK":
 		fmt.Printf("4-Week Treasury Bill")
 	default:
