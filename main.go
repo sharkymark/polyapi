@@ -1575,6 +1575,14 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 		fmt.Printf("Industrial Production")
 	case "PCE":
 		fmt.Printf("Personal Consumption Expenditures")
+	case "DTB1YR":
+		fmt.Printf("1-Year Treasury Bill")
+	case "TB3MS":
+		fmt.Printf("3-Month Treasury Bill")
+	case "DTB6":
+		fmt.Printf("3-Month Treasury Bill")
+	case "DTB4WK":
+		fmt.Printf("4-Week Treasury Bill")
 	default:
 		fmt.Printf("Unknown Series ID")
 	}
@@ -1662,7 +1670,7 @@ func getFRED() {
 	oneYearBeforeFirstDayOfMonthStr := oneYearBeforeFirstDayOfMonth.Format("2006-01-02")
 	oneYearOneMonthBeforeFirstDayOfMonthStr := oneYearOneMonthBeforeFirstDayOfMonth.Format("2006-01-02")
 
-	seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE"}
+	seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE", "DTB1YR", "TB3MS", "DTB4WK", "DTB6"}
 
 	// Fetch data concurrently
 	for _, id := range seriesIDs {
@@ -1874,7 +1882,7 @@ func espnMenu() {
 		getSchedule("NBA")
 	case 10:
 		getSchedule("CollegeBB")
-}
+	}
 
 }
 
