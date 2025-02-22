@@ -1561,6 +1561,8 @@ func fetchSeriesData(seriesID, startYear, endYear string) {
 	switch seriesID {
 	case "FEDFUNDS":
 		fmt.Printf("Federal Funds Rate")
+	case "HOUST":
+		fmt.Printf("Housing Starts")
 	case "ICSA":
 		fmt.Printf("Initial Claims for Unemployment Insurance")
 	case "RSAFS":
@@ -1670,7 +1672,7 @@ func getFRED() {
 	oneYearBeforeFirstDayOfMonthStr := oneYearBeforeFirstDayOfMonth.Format("2006-01-02")
 	oneYearOneMonthBeforeFirstDayOfMonthStr := oneYearOneMonthBeforeFirstDayOfMonth.Format("2006-01-02")
 
-	seriesIDs := []string{"FEDFUNDS", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE", "DTB1YR", "TB3MS", "DTB4WK", "DTB6"}
+	seriesIDs := []string{"FEDFUNDS", "HOUST", "ICSA", "RSAFS", "UNRATE", "GDP", "PCE", "DTB1YR", "TB3MS", "DTB4WK", "DTB6"}
 
 	// Fetch data concurrently
 	for _, id := range seriesIDs {
