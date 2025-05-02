@@ -104,6 +104,13 @@ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o polyapi_linux_amd64
 CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o polyapi_windows_amd64.exe
 ```
 
+The development container ([`.devcontainer/Dockerfile`](.devcontainer/Dockerfile)) provides a consistent environment with:
+
+*   Go 1.24+
+*   Common utilities (`git`, `curl`, `wget`, `htop`, `sudo`, etc.).
+*   GitHub CLI (`gh`).
+*   Goose and Aider CLIs for AI code agent functionality.
+
 ## Resources
 
 [Go](https://go.dev/)
