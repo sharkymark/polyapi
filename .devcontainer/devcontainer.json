@@ -1,7 +1,7 @@
 {
   "name": "PolyAPI w Go",
   "build": {
-    "dockerfile": "../Dockerfile",
+    "dockerfile": "Dockerfile",
     "context": "."
   },
   "containerEnv": {
@@ -9,18 +9,21 @@
     "FRED_API_KEY": "${localEnv:FRED_API_KEY}",
     "SALESFORCE_URL_1": "${localEnv:SALESFORCE_URL_1}",
     "SALESFORCE_CONSUMER_KEY_1": "${localEnv:SALESFORCE_CONSUMER_KEY_1}",
-    "SALESFORCE_CONSUMER_SECRET_1": "${localEnv:SALESFORCE_CONSUMER_SECRET_1}"
+    "SALESFORCE_CONSUMER_SECRET_1": "${localEnv:SALESFORCE_CONSUMER_SECRET_1}",
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${localEnv:GITHUB_PERSONAL_ACCESS_TOKEN}"
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
-        "GitHub.copilot"
+        "GitHub.copilot",
+        "saoudrizwan.claude-dev",
+        "continue.continue"
       ]
       }  
   }, 
   "postCreateCommand": "bash -c '[ ! -f go.mod ] && go mod init sfdc-go || true; go mod tidy'",
-  "postStartCommand": "bash -c 'go build -o main . && ./main'",
+  "postStartCommand": "echo \"${GITHUB_PERSONAL_ACCESS_TOKEN}\" | gh auth login --with-token && echo 'Authentication successful' && git config --global --add safe.directory \"$(git rev-parse --show-toplevel)\" && bash -c 'go build -o main . && ./main'",
   "forwardPorts": []
 }
 
